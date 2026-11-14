@@ -22,7 +22,24 @@ References do not imply business tree membership. Memberships must be declared s
 
 `keys.mjs` namespaces source keys by tenant and derived incoming/claim keys by tenant and catalog identity. Reference IDs resolve in the mutation's tenant; there is no implicit cross-tenant lookup. Claims are also scoped by model and slot. `check.mjs` independently reconstructs reference and claim inventories from source facts and compares them with stored metadata, alongside AVL integrity checks.
 
-The three tests in [test/relations-example.test.mjs](../test/relations-example.test.mjs) exercise the reusable application declaration: both junction directions, 1:N inspection, pair/profile uniqueness rollback, reference retargeting, rejected deletion rollback, and joint repairs/deletions. They use public preparation, mutation and integrity checking. Their `incomingPrefix` import and `tx.scan` calls inspect internal metadata for verification only. Raw scans are not an authorized client relation API; authorization and a supported reverse-read surface remain separate work.
+The three tests in [test/relations-example.test.mjs](../test/relations-example.test.mjs) exercise the reusable application declaration: both junction directions, 1:N inspection, pair/profile uniqueness rollback, reference retargeting, rejected deletion rollback, and joint repairs/deletions. They use public preparation, mutation and integrity checking. Their `incomingPrefix` import and `tx.scan` calls inspect internal metadata for verification only. Raw scans are not an authorized client relation API. JS-P4b.2 now supplies the separate fixture-authorized surface below.
+
+`readIncomingAuthorized(store, catalog, { tenant, actor }, { targetId, model, slot,
+limit }, { getAuthority, ...budgets })` reads authority and candidates in one snapshot.
+The target must pass Read. Each incoming key and source reference slot/array position
+must agree with the hydrated source, then that source must independently pass Read.
+Readable target ownership does not authorize hidden referencers. Results contain
+distinct readable source records sorted by UTF-8 ID, with no raw counts or summary.
+Repeated array positions are deduplicated. Work metrics go only to a trusted host
+callback; see [the API contract](api.md#js-p4b2-authorized-request-composition).
+
+Authorized mutations require explicit Use for new/retargeted reference positions,
+including original/proposed/final target owners and final authority. Existing
+references and engine-managed repairs retain their separate integrity obligations.
+The independent [authorized read](../test/authorized-read.test.mjs) and
+[mutation](../test/authorized-mutate.test.mjs) witnesses cover hidden contributors,
+missing Use, owner transfers, retargeting and atomic rollback. The existing full
+source-derived checker remains unchanged.
 
 ## Performance and adapter boundary
 

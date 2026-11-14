@@ -216,6 +216,18 @@ not grant access to its counts, member identities or summaries:
   Reuse hydration/disclosure for declared reverse-reference candidates as well;
   incoming entries already exist. Do not duplicate business edges or expose raw
   reverse scans as authorized APIs. Account for physical adapter scan work.
+  **Accepted locally on 2026-11-14:** 206 tests passed on Node 26.12.0, zero
+  failed/skipped. Sixteen new reader witnesses use an independent source-filtered
+  oracle, including a 150-entry mutation history, hidden shared-summary contributors,
+  identity corruption, exact budget edges and protected same-snapshot reads.
+  Nineteen mutation witnesses cover both owners, final policy effects, explicit Use,
+  fresh generated targets and full rollback of hidden settlement. Raw independent
+  checkers remain unchanged. See [fresh evidence](evidence/2026-11-14-js-p4b2.json).
+  Only `{ records }` / `{ applied }` are request results; work counters stay in a
+  trusted callback. Node work is bounded separately from physical memory scans and
+  post-fetch bytes. This accepts fixture enforcement, not authentication, cursor
+  fencing, summary publication or production persistence. The current run stops
+  after committing and pushing this checkpoint at the user's request.
 - **JS-P4b.3 — explicit anchor summary disclosure, if needed:** publish only declared
   anchor summaries; FULL hidden contributions never reveal contributor IDs/bodies.
 - **JS-P4b overall — disclosure and owner-stream composition:** validate hydrated sources

@@ -29,15 +29,17 @@ await store.read(tx => engine.treeAggregate(tx, catalog, scope));
 ```
 
 The serialized volatile adapter supports atomic source/index/reference/uniqueness
-updates and reactive settlement. Raw batched windows and fixture owner authority
-are available. Hydrated authorized owner-stream reads, authorized mutations and
-cross-request cursors remain unfinished. This is a local engine, not a server or
-production persistence implementation.
+updates and reactive settlement. Fixture-authorized owner-stream reads, reverse
+reference discovery and mutations now compose the same transaction boundary.
+Cross-request cursors and explicit summary publication remain unfinished. This is
+a local engine with fixture policy enforcement, not production authentication or
+persistence.
 
-Fresh migration verification: **171 tests pass**, including reference/junction
-examples and owner-policy fixtures. Dependency audit reports zero vulnerabilities.
-MIT licensed; see [LICENSE](LICENSE). The Node version used for verification is in
-[.nvmrc](.nvmrc), and the standard test workflow is checked in for CI.
+Fresh JS-P4b.2 verification: **206 tests pass** on Node 26.12.0, including independent
+authorized-read and atomic-mutation witnesses. See [evidence](docs/evidence/2026-11-14-js-p4b2.json).
+Dependency audit reports zero vulnerabilities. MIT licensed; see [LICENSE](LICENSE).
+[.nvmrc](.nvmrc) selects the Node 24 baseline; the standard test workflow is checked
+in for CI. Hosted CI results are separate from this local verification.
 
 Read [current handoff](CONTEXT.md), the [API guide](docs/api.md),
 [architecture](docs/architecture.md), [mathematics](docs/index-mathematics.md),

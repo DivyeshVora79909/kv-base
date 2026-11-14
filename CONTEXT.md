@@ -13,6 +13,14 @@ See [fresh evidence](docs/evidence/2026-11-14-migration.json) for provenance and
 The migration run stopped at this verified commit as requested; that stop applied
 to that run, not to future agents authorized to continue.
 
+**JS-P4b.2 accepted on 2026-11-14:** fixture-authorized owner-stream reads, reverse
+reference disclosure and authored mutations, preserving atomic reactive settlement.
+Fresh verification: **206 Node tests passed**, zero failed/skipped, on Node 26.12.0
+after `npm ci`. This includes 16 independent authorized-reader witnesses and 19
+authorized-mutation witnesses. See [checkpoint evidence](docs/evidence/2026-11-14-js-p4b2.json)
+for source hashes, commands, example work counters and limits. This continuation
+stops at JS-P4b.2 after commit and push, following the user's latest instruction.
+
 ## What exists
 
 - Prepared JSON Schema 2020-12/Ajv catalogs; reusable contracts, named views and
@@ -28,26 +36,29 @@ to that run, not to future agents authorized to continue.
 - Private-by-default optional model access orders, `prepareAuthority`,
   `resolveAuthority`, `permits` (JS-P4b.1). These are pure fixture policy functions;
   raw reads and mutations are still trusted APIs without enforcement.
+- `readAuthorized` merges cached hydrated owner heads with exact ordering and finite
+  discovery/setup/candidate/refill/node/byte budgets. `readIncomingAuthorized` composes
+  existing incoming entries with the same source validation/disclosure. Only readable
+  records are returned; diagnostic counters remain privileged (JS-P4b.2).
+- `mutateAuthorized` checks both owners, new/retargeted reference Use, settled targets
+  and final transaction-loaded authority. Hidden managed repairs retain the same
+  atomic settlement boundary. Fixture enforcement is not authentication (JS-P4b.2).
 
 ## Resume here
 
-The clean repository contains the migration plus JS-P4b.1. Inspect Git status and
+The repository contains the migration through JS-P4b.2. Inspect Git status and
 the latest commits before resuming; do not assume this page supersedes later evidence.
 
-Next implementation gate is **JS-P4b.2**: validate hydrated source/occurrence identity,
-merge permitted owner streams with cached heads on one snapshot, budget discovery,
-setup/candidates/refills, and enforce authorized mutations, before/after owner transfers
-and retargeted-reference checks. Compare against an independent filtered oracle;
-exercise private models, hidden contributors, missing grants and final authority.
-Forward/reverse reference maintenance already exists; the new relation fixture proves
-1:N, uniqueness-backed 1:1 and N:M junctions. Compose authorized reverse-reference
-discovery with the same hydration/disclosure primitive rather than adding a second
-relation engine. Raw incoming scans remain internal and physically linear in the
-memory adapter. See [the relation contract](docs/relations.md).
-**JS-P4b.3** covers explicitly published anchor summaries if needed: disclosure of a
+Next gate is **JS-P4b.3**, explicitly published anchor summaries if needed: disclosure of a
 FULL summary never grants contributor IDs/bodies. **JS-P4c** adds exact-query,
 catalog/authority and relevant-state continuation fencing, including payload-only
 updates and owner transfers. No global mutation/revision counter. Full P4 is open.
+Current request results expose no summary or continuation. Shared raw business
+summaries retain hidden contributors; only trusted callers may inspect them.
+Reverse reads still use physically linear memory scans; budgets count that work
+after scanning. Authority providers must obtain current fixture policy inside the
+request transaction. See [API contracts](docs/api.md#js-p4b2-authorized-request-composition)
+and [the relation contract](docs/relations.md).
 
 **JS-P5** follows P4: writer-paused generation build/check/activation/retirement,
 ordinary importable model inspection/population/workload functions and reproducible

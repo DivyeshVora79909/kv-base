@@ -103,21 +103,42 @@ export function prepareAuthority(catalog, definition, options = {}) {
  * visits direct parents, copies/merges own and inherited grant contents, and
  * freezes returned arrays/grants; resource unions have at most five actions. */
 export function resolveAuthority(prepared, context) {
+  return resolveScope(prepared, context, () => {});
+}
+
+function resolveScope(prepared, context, charge) {
   const data = preparedData.get(prepared);
   if (!data) fail('Expected a prepared authority handle');
   json(context); exact(context, ['tenant', 'actor'], 'authority context'); id(context.tenant); id(context.actor);
   const node = data.nodes.get(context.actor);
   if (context.tenant !== prepared.tenant || !node?.active) fail('Operation is not permitted', 'FORBIDDEN');
   const descendants = new Set(), queue = [node.id];
+  charge(1);
   for (let index = 0; index < queue.length; index++) for (const child of data.children.get(queue[index])) {
+    charge(1);
     if (!descendants.has(child)) { descendants.add(child); queue.push(child); }
   }
   const accessible = new Set([node.id, ...descendants]);
-  for (const parent of node.parents) if (data.nodes.get(parent).kind === 'group') accessible.add(parent);
+  for (const parent of node.parents) {
+    charge(1);
+    if (data.nodes.get(parent).kind === 'group') accessible.add(parent);
+  }
   const grants = effective(node, data.nodes);
   const scope = freezeDeep({ tenant: prepared.tenant, actor: node.id, active: true, accessible: [...accessible], descendants: [...descendants], grants });
   scopeData.set(scope, { catalog: data.catalog, accessible, descendants });
   return scope;
+}
+
+/** Internal request composition. The host supplies current fixture authority from
+ * the same transaction; a prepared handle alone is not a freshness guarantee. */
+export async function resolveRequestAuthority(tx, catalog, context, getAuthority, charge) {
+  if (typeof getAuthority !== 'function') fail('A transaction-bound authority provider is required');
+  json(context); exact(context, ['tenant', 'actor'], 'authority context');
+  const fixed = cloneData(context);
+  const prepared = await getAuthority(tx);
+  const data = preparedData.get(prepared);
+  if (!data || data.catalog.identity !== catalog.identity) fail('Authority catalog differs', 'CATALOG_MISMATCH');
+  return resolveScope(prepared, fixed, charge ?? (() => {}));
 }
 
 /** Model access is explicit opt-in; admin never widens owners or grants use. */

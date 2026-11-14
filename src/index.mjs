@@ -10,3 +10,5 @@ export { canonical, fingerprint, decodeDomain, compareDomain } from './values.mj
 
 export { treeReadWindow } from './read-window.mjs';
 export { prepareAuthority, resolveAuthority, permits } from './authority.mjs';
+export { readAuthorized, readIncomingAuthorized } from './authorized-read.mjs';
+export { mutateAuthorized } from './authorized-mutate.mjs';

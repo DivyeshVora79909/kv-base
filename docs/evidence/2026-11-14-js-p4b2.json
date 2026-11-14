@@ -1,0 +1,410 @@
+{
+  "checkpoint": "JS-P4b.2",
+  "date": "2026-11-14",
+  "status": "accepted-local-volatile-prototype",
+  "repository": "https://github.com/DivyeshVora79909/kv-base",
+  "source": {
+    "parentCommit": "f67e6d5f89efd71b02dea1ef46af144dd1679fe9",
+    "identity": "Working snapshot captured below; the commit containing this evidence is the accepted checkpoint. Evidence excludes its own hash.",
+    "testedSourceSha256": "797d57a149c354516f4cce4fb52f0405b57ada37d7cfc8600ecb03102640d220",
+    "digestRule": "SHA-256 of JSON.stringify(files filtered to src/, test/, examples/, package.json and package-lock.json), in the listed path order",
+    "unchangedIndependentCheckers": [
+      "src/oracle.mjs",
+      "src/calculation-oracle.mjs",
+      "src/check.mjs",
+      "src/check-reactive.mjs"
+    ]
+  },
+  "runtime": {
+    "node": "26.12.0",
+    "npm": "12.2.0",
+    "platform": "linux",
+    "arch": "x64",
+    "kernel": "7.0.0-42-generic"
+  },
+  "verification": {
+    "install": "npm ci",
+    "command": "npm test",
+    "tests": 206,
+    "passed": 206,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "authorizedReadTests": 16,
+    "authorizedMutationTests": 19,
+    "durationMs": 8656.50898,
+    "outputSha256": "a4c4e0e8b154612e983383971b206d5963cc40843745110009d1e05673099918",
+    "focusedCommands": [
+      "node --test test/authorized-read.test.mjs",
+      "node --test test/authorized-mutate.test.mjs"
+    ],
+    "example": "Executed the JavaScript block under docs/api.md JS-P4b.2 using Node, asserted ordered/incoming IDs, updated label, privileged shared total and independent store check; then collected diagnostic counters for the same fixture.",
+    "review": "Coordinator plus separate mutation, read-witness and iterator reviewers; fixed explicit null range handling and malformed incoming source identity during review. Final source diff checked with git diff --check.",
+    "audit": {
+      "command": "npm audit --omit=dev --json",
+      "vulnerabilities": 0
+    },
+    "hostedCI": "No hosted CI result claimed by this local acceptance"
+  },
+  "witnesses": [
+    "Independent source-filtered owner merge with composite owner position, exact BigInt ordering, UTF-8 ties, scalar and complete cuts, empty ranges and finite result limits",
+    "150-entry five-owner history: 35 payload/order edits, 40 owner transfers, 15 deletions and 20 creates, nine independently filtered requests across each of four snapshots",
+    "Cached heads hydrate each candidate once; exact and one-below discovery, setup, candidate, refill, node, batch, read/output byte and physical scan budgets",
+    "Private models, hidden owners, missing grants, tenant isolation, catalog mismatch and per-request protected fixture policy reload",
+    "Hydration rejects source/key/tenant/model/owner/partition/order/contribution drift and malformed occurrence or incoming reference metadata",
+    "Shared raw summary includes hidden contributions while authorized ordered/reverse results disclose only visible records, with no summary or hidden population counters",
+    "Protected empty owner roots/incoming ranges and same-snapshot hydration while a payload writer waits",
+    "Create/update/delete action scope, admin does not widen owners or grant Use, both-owner transfers and private/managed/reserved-identity restrictions",
+    "Added and retargeted scalar/array references check Use and original/proposed/final target owners; fresh generated targets checked after settlement",
+    "Final policy effects loaded through the same transaction can reject and roll back authored data, hidden managed repairs, memberships, routes, claims and policy changes",
+    "Joint uniqueness/reference repairs, no-op protected reads, caller input detachment and injected commit failure preserve existing atomic guarantees"
+  ],
+  "sample": {
+    "orderedIds": [
+      "add",
+      "use"
+    ],
+    "incomingIds": [
+      "add",
+      "use"
+    ],
+    "updatedLabel": "renamed",
+    "privilegedSharedTotal": "8",
+    "checked": {
+      "sources": 4,
+      "trees": 6,
+      "occurrences": 11,
+      "references": 3,
+      "claims": 3
+    },
+    "orderedMetrics": {
+      "discovery": 4,
+      "streams": 2,
+      "candidates": 2,
+      "refills": 2,
+      "nodes": 2,
+      "batches": 7,
+      "readBytes": 2661,
+      "outputBytes": 594,
+      "outputs": 2,
+      "scans": 0,
+      "scannedKeys": 0
+    },
+    "incomingMetrics": {
+      "discovery": 5,
+      "streams": 0,
+      "candidates": 3,
+      "refills": 0,
+      "nodes": 0,
+      "batches": 5,
+      "readBytes": 2568,
+      "outputBytes": 594,
+      "outputs": 2,
+      "scans": 1,
+      "scannedKeys": 29
+    }
+  },
+  "sampleScope": "Four source records from examples/authorized.mjs, one payload update, default finite read limits from docs/api.md. Work counters are trusted fixture diagnostics, not capacity measurements or public query fields. Reads stage zero writes by the read-only adapter contract.",
+  "limitations": [
+    "Fixture-policy enforcement does not authenticate actor identity; host getAuthority callbacks must obtain current policy within the transaction. No sessions, credentials, network boundary or revocation guarantee from immutable handles alone.",
+    "Only serialized volatile memory storage is accepted; no crash durability, persistent adapter, distributed concurrency, original receipt recovery or production capacity acceptance.",
+    "Authorized readers return records only; explicit anchor summary publication and cross-request continuation fencing remain JS-P4b.3/JS-P4c. No global visible rank, cross-model ordered union or global revision counter.",
+    "Raw adapter/tree/writer functions remain privileged. New changed reference positions require Use; unchanged references and generated repairs retain separate integrity obligations.",
+    "Owner streams use cached inorder paths and heap heads but may issue single-key batches. Source schema/projection cost, authority provider preparation, effective grant copying and callback CPU are not fully capped.",
+    "Byte and physical scan limits are checked after fetch/clone/encoding or scan; memory incoming discovery enumerates the full store and sorts matches, even for small requested pages. No hard heap/transport cap or logarithmic whole-transaction claim.",
+    "Work diagnostics may reveal hidden population and are passed only to a trusted callback. Timing and WORK_LIMIT behavior are not a noninterference guarantee.",
+    "Traversal checks visited structure and hydrated candidates; independent checkStore remains necessary for full active-generation integrity. Inactive generations and lifecycle activation remain open.",
+    "Index lifecycle, developer population/workload tools and bounded capacity demonstrations remain JS-P5; examples stay ordinary importable Node functions."
+  ],
+  "continuation": "Stop after committing and pushing JS-P4b.2 as requested. Next authorized continuation starts with the JS-P4b.3 summary-disclosure decision and JS-P4c continuation fencing; full P4 and JS-P5 remain open.",
+  "files": [
+    {
+      "path": ".editorconfig",
+      "sha256": "3a151560c443f6fe8a734313554126e8625ff1ae0642d44115f9bd097b873390"
+    },
+    {
+      "path": ".gitattributes",
+      "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+    },
+    {
+      "path": ".github/workflows/test.yml",
+      "sha256": "fc5d6f3317eb03264862e21a094e53bb620447999729e1a9c7e16a639fbc9c66"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "34a77a771322a6f8e6287b4981119f4cc1b78ab7c3fbd24e6ce98b9af1b19b84"
+    },
+    {
+      "path": ".nvmrc",
+      "sha256": "d9f318747a126ce2247661af67852b185def7789492eabfad7bba322be087c33"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "f0b3a6b887bba4047b8a6163a06742576b7b0123d5da2fd31d37855842c775df"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "34f02a43067672cb742954c9f103ef68b665c73e956a539a03b63c835821bac9"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "8c3db6cdedbb9566ae7c591b85a1b53dcdbe494b4517e7ec53e7a1d458f43459"
+    },
+    {
+      "path": "README.md",
+      "sha256": "fefb4e4b3831a0bd9aba786db20d25d5fa17583188070aca7f21156db5c5ca29"
+    },
+    {
+      "path": "docs/api.md",
+      "sha256": "0a9d6c5bb52ed44da61c1027b47587e88105d0f2ab46eb5bee4d9080fed501eb"
+    },
+    {
+      "path": "docs/architecture.md",
+      "sha256": "53f0e1aca36a10e19f2d5e9de562a1706f65427b0d19d4a22ada88452fef12ee"
+    },
+    {
+      "path": "docs/capabilities.md",
+      "sha256": "b8f2202d095f2c1e6d8a78c3e9e9c01c81c4a84cf439124c5e4d55dc588788d3"
+    },
+    {
+      "path": "docs/checkpoints.md",
+      "sha256": "aa4cab50169aa87f8e6557b5974b3100185da376b6336269ae3760619aca2528"
+    },
+    {
+      "path": "docs/evidence/2026-11-14-migration.json",
+      "sha256": "cb2716995feab026902e77ab5fe606ced2fa9b5c734c084788166395acda6cb0"
+    },
+    {
+      "path": "docs/index-mathematics.md",
+      "sha256": "945f73babb5a615b3b574e02ae6643d40e3a5a1e933672d5b277b1b24c0704d3"
+    },
+    {
+      "path": "docs/relations.md",
+      "sha256": "7f850779264cf6ae1053d71cfffd27230ee6e56cedd0c162755d4e63472adb96"
+    },
+    {
+      "path": "examples/activity.mjs",
+      "sha256": "783cf062a1cfd6b94a5c7e8f9c6072907c3b66704be5edc1171a4b7187b09438"
+    },
+    {
+      "path": "examples/authorized.mjs",
+      "sha256": "4a0e01641d381053371c9b9f8ca6162d17b9eb20a2f7ae751823e399139c2789"
+    },
+    {
+      "path": "examples/causal.mjs",
+      "sha256": "97e5a92404f848d392007a0918c0fa4f88ffdaed2032c2b46e91b75b33820ab6"
+    },
+    {
+      "path": "examples/relations.mjs",
+      "sha256": "991bd90edba0b41a217cde2f13aa861aa63d0ac60fa54adb384ed4e29ab4a064"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "c8d0f6da77a997d2843f709547f2ca319e01d12f08803b23ad57104733884233"
+    },
+    {
+      "path": "package.json",
+      "sha256": "15aceb35170d113934cc71f502ad27725ccdbd055438bb118cea68eb8c0d6cff"
+    },
+    {
+      "path": "src/authority.mjs",
+      "sha256": "af53c9375fdbe33a3e905cfa1b3845aa28a83a10a5473e255af08a116d0b9919"
+    },
+    {
+      "path": "src/authorized-mutate.mjs",
+      "sha256": "eedc72f2a8f5f84f910297f05b3cba2dc48592cdd7bd7c1808846897d4c01f2a"
+    },
+    {
+      "path": "src/authorized-read.mjs",
+      "sha256": "961a1cb7a4c35ad1b800af1ed3e17c6734215381720f27de7a1e059ed19b5cfc"
+    },
+    {
+      "path": "src/calculation-identity.mjs",
+      "sha256": "9184c8536fce76469fe5d57b08359704f26894d592787fc8df35fb8aa1135f88"
+    },
+    {
+      "path": "src/calculation-oracle.mjs",
+      "sha256": "ffa9101f7c9143f3273033d80fe9fd38d82c6c27a2d8a7fd7a455c019ad8469a"
+    },
+    {
+      "path": "src/calculation-runtime.mjs",
+      "sha256": "af0030dd1349aa5ad449d7c188ceefae1a7bf68d048b0b8a89c7cf8ac614054f"
+    },
+    {
+      "path": "src/catalog.mjs",
+      "sha256": "a77de1bd15f541805e1c23dff60c7b80d34abd40ee475046c5456eb6e0611bf7"
+    },
+    {
+      "path": "src/check-reactive.mjs",
+      "sha256": "4cc628af20029fbedc76c1016d26cafc8915b3b7fef07c976fdefaf7504ef6ce"
+    },
+    {
+      "path": "src/check.mjs",
+      "sha256": "617ec50a1bc4e9344bdc806783f14e6b6b3ff526837cb66320a60cd4848f24af"
+    },
+    {
+      "path": "src/disclosure.mjs",
+      "sha256": "0e03fe81fe3b9c9f489ac7de39b4902ebf96ce213aeb743a3dd760401dfb7221"
+    },
+    {
+      "path": "src/index.mjs",
+      "sha256": "dddca71a7962659c1f4d49b5408ceee27593d63610fc33983293130e06fd9277"
+    },
+    {
+      "path": "src/keys.mjs",
+      "sha256": "51baf5d10f8f986a75aab64e9d56a798dfc54d055572f329a4a87669ae252b81"
+    },
+    {
+      "path": "src/memory.mjs",
+      "sha256": "43cf6766b1836ca51c1d40673b809ee977990d9194af89a5cfb0bc4df7905cc1"
+    },
+    {
+      "path": "src/monoids.mjs",
+      "sha256": "85dc3df657c99e0cb13d6bfbe4ff7ea948a54f564c6f63d62a9720113c178bc1"
+    },
+    {
+      "path": "src/mutate.mjs",
+      "sha256": "2b408afcb563376fd0ccfd3a199f6f8e6d348eb04bcc087ef9bda6e61573b0f1"
+    },
+    {
+      "path": "src/oracle.mjs",
+      "sha256": "481ad9814b3b9a99908d8977573e1cf33564264bd5541f178ef21f4a4a21f0b3"
+    },
+    {
+      "path": "src/owner-stream.mjs",
+      "sha256": "3d9d51418ba3d74b805bf0e40813b3212a1bad9fb1bafeccb0a383885d2a7635"
+    },
+    {
+      "path": "src/potential.mjs",
+      "sha256": "6986d0afcd6c3264be99d38a78f5d4b75a08fa3c8104b5c7ebb0b42b596140b3"
+    },
+    {
+      "path": "src/range.mjs",
+      "sha256": "ad22206b915426172d521a0be6301cef55193d849170b49bc4da8f4f03f69571"
+    },
+    {
+      "path": "src/read-window.mjs",
+      "sha256": "d39138fb99df6aa1618d8f96c54239c120ec0b7f643457b4b45655f101895e3b"
+    },
+    {
+      "path": "src/routes.mjs",
+      "sha256": "9da6ea959fe6e20f09fd576c6d7583d67271d54b5f563112a259797cfba70ed8"
+    },
+    {
+      "path": "src/settlement.mjs",
+      "sha256": "221dd5e5e2544933555b0c1c8b1e092ea0a729357efae18f478a853b2f8be0a3"
+    },
+    {
+      "path": "src/stage.mjs",
+      "sha256": "07a0dcd9a493d2d52c13ab0f08df10ee967f1f0eaee3acce4f5e724718388466"
+    },
+    {
+      "path": "src/tree.mjs",
+      "sha256": "d398d9a4a478213754f6c5980fead0a61878c9ef7e62d01321265ee05783accb"
+    },
+    {
+      "path": "src/values.mjs",
+      "sha256": "b1fa33caf5b86cd22f1b99fec28647c78d1eb45d6be15a57f0820c75e2d2ca8c"
+    },
+    {
+      "path": "test/access-catalog.test.mjs",
+      "sha256": "1b3a6402878c42e74e853baead5b4777fd4036d64b1f364199fb625492284d47"
+    },
+    {
+      "path": "test/authority.test.mjs",
+      "sha256": "980f0a1b84dd35d3ef231ab7c409436ee4bd499bfc25ec5a0f8367e3ff9637f6"
+    },
+    {
+      "path": "test/authorized-mutate.test.mjs",
+      "sha256": "6c2928ad1b5f63a6fe74e045557b6fd05ead65160563a6f5446655ea4be37bee"
+    },
+    {
+      "path": "test/authorized-read.test.mjs",
+      "sha256": "7c75f7357038925deb2ec7ba2c63189636ec7c949147fb90eabf3515e5e8f406"
+    },
+    {
+      "path": "test/calculation-catalog.test.mjs",
+      "sha256": "4e60552a420e2ba56125b265b5db107bd9f3ed9ec290a5d8595ca82f0c734d46"
+    },
+    {
+      "path": "test/calculation-oracle.test.mjs",
+      "sha256": "f64997765dd6301dd9ba4eebb51b5a50ca20a889c25172f8db7bca84dfe99e3d"
+    },
+    {
+      "path": "test/calculation-runtime.test.mjs",
+      "sha256": "ee75e0a92a6eaf3cb9e38b919c0b471f833dfaa40d51b0675b58185273108b2f"
+    },
+    {
+      "path": "test/catalog.test.mjs",
+      "sha256": "0f713814674df1cbf5d2efb8e76308dc5ea29a85e8357aeacb8e88d602cdad4d"
+    },
+    {
+      "path": "test/check-reactive.test.mjs",
+      "sha256": "57e0dde21bc49bf820b3a0186bbc6b57a8b1443fce5743384cdb42439fe69739"
+    },
+    {
+      "path": "test/composition.test.mjs",
+      "sha256": "698cfc4fd67a8402f1b74f3263d59ea6b0c255ffd3950e117f4ce6dee7e6c119"
+    },
+    {
+      "path": "test/integrity.test.mjs",
+      "sha256": "06b0b1a3f4eb68bbeb4439120525e9c29f4f14d630bf1f70ff4460a1faf2f961"
+    },
+    {
+      "path": "test/memory.test.mjs",
+      "sha256": "77dfa34a186311fe74eae50298a2501d155d1fb81d21dcb5ea3d1809389cc25c"
+    },
+    {
+      "path": "test/monoids.test.mjs",
+      "sha256": "9400a25b8867eb62af37df433345b1947a1af78b3b3218b55e1777be2b1e9590"
+    },
+    {
+      "path": "test/mutate.test.mjs",
+      "sha256": "e77387e52740502dfc17fbdd5af895345fa2b05e005792cdc2673089bfad987f"
+    },
+    {
+      "path": "test/oracle.test.mjs",
+      "sha256": "c1878444610637875005d58754f6ba39a95aab796eddb930b135fac3e3d5e72c"
+    },
+    {
+      "path": "test/potential.test.mjs",
+      "sha256": "7220bac08eaa0504fab0f47d1e6a97aa4a5e274cdd4a5434ec98645cea1e455b"
+    },
+    {
+      "path": "test/range.test.mjs",
+      "sha256": "9c053afb67d8ef3e0d409fb920d96ab578bc501308162db79ccfb9ee173aba46"
+    },
+    {
+      "path": "test/read-window.test.mjs",
+      "sha256": "7a1b975a7aecc755c2a299c71e0f8ce3f8a1b20adb361f40b3795f835732cbd8"
+    },
+    {
+      "path": "test/relations-example.test.mjs",
+      "sha256": "c0ba7c5ab061ac7f244de0f88e95bc6cd9490c0f3eb38bdd236d18b3fadce0b3"
+    },
+    {
+      "path": "test/routes.test.mjs",
+      "sha256": "731408b2368fed545255f96653a0f722d9ffc27c0d660c46d3120abc829f1c4a"
+    },
+    {
+      "path": "test/settlement-unit.test.mjs",
+      "sha256": "71829400e18a25f2340e1e4aa80c890b88632a2c8ba3bbff565983cf3148f64d"
+    },
+    {
+      "path": "test/settlement.test.mjs",
+      "sha256": "f765956cfa8def49ec965f425d46595a9eb63c39ba50d4c55e2a83ea4998934a"
+    },
+    {
+      "path": "test/staging.test.mjs",
+      "sha256": "33ca54ea2abc1b2e459388907300b3e44f87f73564359540d9fec0512e448169"
+    },
+    {
+      "path": "test/tree.test.mjs",
+      "sha256": "c074a1706aeb8532888c6dfa2236a4d668405d461439e600249d848df89514e3"
+    },
+    {
+      "path": "test/values.test.mjs",
+      "sha256": "da14dce4d0b363428facd160ed41424f5625995cc9a2ade024755020545c1512"
+    }
+  ]
+}

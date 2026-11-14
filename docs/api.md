@@ -58,6 +58,9 @@ an inspector/test oracle, not a mutation algorithm.
   are immutable on update. Return changed-source/membership counts, touched tree scopes
   and adapter metrics. Reactive catalogs also return `settlement` metrics; see below.
   The optional `beforeCommit` fault hook runs before publication.
+- `readAuthorized`, `readIncomingAuthorized`, `mutateAuthorized`: transaction-owned
+  fixture-policy enforcement with current authority, safe result shapes and protected
+  disclosure; see [JS-P4b.2](#js-p4b2-authorized-request-composition) for exact contracts.
 - `checkStore(store, catalog, tenant)`: independently reconstruct complete active-generation
   inventories from source facts, then check ordering, links, AVL balance, heights,
   structural sizes, subtree folds, references, claims and business validators.
@@ -141,7 +144,9 @@ storage calls; a batch is not a measured network round trip. The reader checks
 loaded identities and expanded local structure but trusts summaries in pruned
 subtrees. Use `checkStore` for independent full integrity checking.
 
-This raw API neither hydrates sources nor authorizes disclosure. Owner-scoped merge, candidate budgets and cross-request cursor fencing remain later JS-P4 gates. Fixture authority alone does not authorize this API.
+This raw API neither hydrates sources nor authorizes disclosure. Use the separate
+JS-P4b.2 functions below for fixture-authorized reads. Cross-request cursor fencing
+remains a later gate. Fixture authority alone does not authorize this raw API.
 JS-P4a acceptance: 152 tests passed on Node 24.22.1, zero failed/skipped; see
 [evidence](https://github.com/DivyeshVora79909/next-base/blob/76b6e84/docs/checkpoints/js-p4a.json).
 
@@ -320,7 +325,7 @@ No crash durability, distributed OCC, automatic retry or unknown-ACK acceptance 
 claimed. Direct adapter calls are trusted internal operations, not authorized RPCs.
 
 The checker covers the requested tenant and current catalog generation, not unknown
-inactive generations or lifecycle activation. Direct mutation/read functions are trusted
+inactive generations or lifecycle activation. Raw mutation/read functions are trusted
 internal APIs: tenant partitioning is not caller authentication or authorization.
 
 See [JS-P3a evidence](https://github.com/DivyeshVora79909/next-base/blob/76b6e84/docs/checkpoints/js-p3a.json),
@@ -359,16 +364,139 @@ parents; Delete owners are self/strict descendants. Immediate Tenant parents are
 excluded from ordinary owner scope. Only Users inherit raw grants from active
 immediate Group/Tenant parents; grants do not transitively propagate. Admin satisfies
 ordinary action checks except Use, without widening owners. Both-owner update checks
-and reference authorization belong to JS-P4b.2. These pure fixtures are not wired into
-`mutate`, raw reads or query enforcement. WeakMap branding is handle authenticity,
+and reference authorization are enforced by the separate JS-P4b.2 functions below.
+These pure fixtures do not change `mutate` or raw reads. WeakMap branding is handle authenticity,
 not isolation from trusted JavaScript in the process. No login, session, network or
 production authentication is supplied.
 
 Preparation builds adjacency and checks cycles without an all-pairs descendant
 table. Graph work is `O(V+E)` plus grant validation and canonical sorting. Resolving
 one actor walks its reachable descendants/edges and direct parents, and copies its
-effective grants. The prepared graph is immutable fixture input: future request
+effective grants. The prepared graph is immutable fixture input: request
 wrappers must obtain current authority within their transaction; a long-lived
 handle is not a revocation or current-session guarantee. Adding access declarations
 changes catalog identity; use an explicit fresh store until lifecycle activation
 is implemented.
+
+## JS-P4b.2 authorized request composition
+
+`readAuthorized`, `readIncomingAuthorized` and `mutateAuthorized` each own one adapter
+transaction. They require `{ tenant, actor }` and a trusted host option
+`getAuthority: async tx => preparedAuthority`. The provider must return current
+fixture policy for that transaction, prepared against the same catalog identity.
+Load mutable policy through `tx`; a constant provider is appropriate only for an
+explicitly immutable fixture. The provider and diagnostic/fault callbacks are trusted
+application code, never executable request input. These APIs enforce fixture policy;
+they do not authenticate a claimed actor or create sessions.
+
+Executable composition from a repository-root Node REPL:
+
+```js
+const engine = await import('./src/index.mjs');
+const example = await import('./examples/authorized.mjs');
+const catalog = engine.prepareCatalog(example.authorizedDefinition());
+const store = engine.createMemoryStore();
+await engine.mutate(store, catalog, 'tenant',
+  example.authorizedRecords().map(record => ({ type: 'put', record })));
+// Host-owned fixture data; this key is not a production policy persistence API.
+await store.transact(tx => tx.set('fixture-authority/tenant', example.authorityDefinition()));
+const getAuthority = async tx => engine.prepareAuthority(catalog,
+  await tx.get('fixture-authority/tenant'));
+const context = { tenant: 'tenant', actor: 'alice' };
+const page = await engine.readAuthorized(store, catalog, context,
+  { model: 'movement', order: 'effective', partition: ['resource'], limit: 10 },
+  { getAuthority });
+page.records.map(record => record.id); // ['add', 'use']
+const changed = structuredClone(page.records[0]);
+changed.data.label = 'renamed';
+await engine.mutateAuthorized(store, catalog, context,
+  [{ type: 'put', record: changed }], { getAuthority }); // { applied: 1 }
+await engine.readIncomingAuthorized(store, catalog, context,
+  { targetId: 'resource', model: 'movement', slot: 'resource', limit: 10 },
+  { getAuthority }); // { records: [changed, the use record] }
+await engine.checkStore(store, catalog, 'tenant');
+```
+
+`readAuthorized(store, catalog, context, query, options)` accepts exactly
+`{ model, order, partition, range?, limit }`. `order` names the model's prepared
+access order, and `partition` supplies the **non-owner** roles in their declared
+order. The request cannot supply an owner partition. `range` uses the scalar or
+complete typed cuts of `treeAggregate`; explicit null/undefined ranges reject.
+`limit` is a finite nonnegative safe integer. There is no filtered rank parameter.
+Private models or missing Read grants reject with `FORBIDDEN`.
+
+Resolve owner scope once, open each permitted owner stream, hydrate its head, and
+merge with a heap using exact order/source/slot comparison. Advancing a popped stream
+retains its traversal stack; it does not seek from the root for each row. Source
+hydration validates the schema, tenant, ID, model, projected partition, occurrence
+slot/order and contribution before disclosure. Dangling/mismatched candidates reject
+with `CORRUPT_STATE`. A successful result is only `{ records }`; it contains no raw
+ranks, totals, summaries, hidden IDs or continuation token. Zero limit returns an
+empty page after request/authority validation, without discovering streams.
+
+`readIncomingAuthorized(store, catalog, context, query, options)` accepts exactly
+`{ targetId, model, slot, limit }`, where `slot` names a declared reference of the
+requested source model. The target must itself pass Read; absent and inaccessible
+targets both reject with `FORBIDDEN`. Incoming entries are validated against their
+key, target and hydrated source's declared reference slot/array position before the
+same disclosure check. Other models/slots and hidden owners are filtered. Return
+distinct source records sorted by UTF-8 ID, clipped to `limit` **after** bounded
+discovery. Repeated array references do not duplicate records. This query uses the
+existing incoming metadata, without another relation inventory. It scans all bounded
+target candidates, even for a small output limit.
+
+Both readers support these finite options; unknown options and invalid limits reject.
+Every exhausted limit throws `WORK_LIMIT` and returns no partial page:
+
+| Option | Default | Charged work |
+| --- | ---: | --- |
+| `maxDiscovery` | 10000 | Actor visit, traversed descendant edges, direct parents, owner stream candidates or incoming entries |
+| `maxStreams` | 256 | Owner stream setups, including absent roots |
+| `maxCandidates` | 10000 | Hydrated candidate occurrences/references, including filtered incoming entries |
+| `maxRefills` | 10000 | Stream advances after an output is popped, including exhausted streams |
+| `maxNodeVisits` | 100000 | Loaded tree nodes |
+| `maxBatchCalls` | 10000 | Reader `getMany` calls, including catalog/root/source reads |
+| `maxReadBytes` | 16777216 | UTF-8 keys plus canonical encoded fetched values and incoming entries |
+| `maxOutputBytes` | 4194304 | Canonical encoded disclosed records |
+| `maxScannedKeys` | 1000000 | Physical enumerated keys reported by memory `tx.inspect()` |
+| `batchSize` | 32 | Positive maximum keys per fetch call; it does not promise full batches |
+
+An optional trusted `onMetrics(metrics)` receives `discovery`, `streams`, `candidates`,
+`refills`, `nodes`, `batches`, `readBytes`, `outputBytes`, `outputs`, `scans` and
+`scannedKeys` on success. Keep these diagnostics in the host: incoming work counters
+can reveal hidden population. Callback failure rejects the read. Runtime/work-limit
+behavior is not a timing noninterference guarantee.
+
+For valid trees and bounded comparison, owner traversal loads
+`O(sum(log(n_owner+1)) + candidates)` nodes; heap comparisons add
+`O(candidates log(streams+1))`. Setup and authority discovery also cost work.
+The current stream traversal can use single-key batches; no network RTT bound follows.
+Cached paths use memory proportional to loaded nodes. Budgeting is logical and often
+post-fetch: encoding, source validation/projection, authority provider preparation,
+grant copying and trusted callback CPU are not hard heap/transport/CPU caps. Memory
+incoming scans still enumerate the store and sort matches; the physical scan cap is
+checked after scanning. No logarithmic reverse query or transaction claim follows.
+
+`mutateAuthorized(store, catalog, context, changes, options)` accepts the same authored
+put/delete commands as `mutate`, with required `getAuthority` plus the existing
+settlement caps and optional `beforeCommit` fault hook. It authorizes existing and
+requested owners before immutable-header, reference, uniqueness and business checks.
+Create requires Create on the requested owner, update requires Update on both owners,
+and delete requires the narrower Delete scope. Missing and inaccessible deletes both
+reject with `FORBIDDEN`. No CAS protocol is introduced by this gate.
+
+New/retargeted reference positions require explicit Use on the target; Admin does not
+substitute for Use. Check original and proposed target owners, then settled final
+targets. A fresh generated target may first appear during settlement and is checked
+before publication. Unchanged reference positions do not acquire new caller checks.
+Managed repairs remain privileged; direct managed/reserved-identity commands reject.
+After settlement, reload authority through the **same** transaction and recheck the
+original/requested/final owners and changed reference targets. Denial, settlement
+failure or commit-hook failure rolls back sources, indexes, claims, routes, generated
+state and policy effects together. Results contain only `{ applied: changes.length }`,
+counting accepted authored commands, including no-ops; raw derived counts and guards
+are not returned. Raw `mutate`, adapter calls and low-level tree APIs remain trusted.
+
+Acceptance evidence is [JS-P4b.2](evidence/2026-11-14-js-p4b2.json). Explicit published
+anchor-summary policy, cross-request continuation fencing, persistent adapters and
+production identity/session enforcement remain outside this checkpoint.

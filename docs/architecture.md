@@ -255,6 +255,14 @@ repairs privileged while authorizing client commands and retargeted references.
 No readers/read_by/indexes/inference. The principal DAG must be acyclic and same-tenant.
 Prototype uses explicit fixture authority; this is not a production authentication API.
 
+JS-P4b.2 supplies separate request functions that obtain fixture authority inside
+their read/write transaction. The authorized writer checks original and requested
+owners, settles through the existing transaction engine, reloads final authority,
+then checks final owners and newly used reference targets before publication. Policy
+effects in that transaction therefore cannot bypass final checks. Raw writer and
+repair primitives remain privileged. No new CAS, session or credential protocol is
+implied. Authorized results omit raw derived scopes and guard inventories.
+
 For scoped reads, declare owner as a partition role and k-way merge accessible owner
 streams with one comparator/tie order, bounded initialization and candidate work.
 An authorization-candidate view must bind that role to the trusted source owner;
@@ -265,6 +273,17 @@ Full-parent ordered integrity can require a separate owner-independent membershi
 noncommutative summaries from owner streams cannot simply be concatenated in owner
 order. Shared business roots may contend legitimately. Tenant namespace alone does
 not require a mutable tenant-wide aggregate/counter.
+
+The implemented authorized reader retains one inorder iterator and hydrated head
+per owner stream and merges using a heap. Source/schema/key/partition/slot/order and
+contribution agreement is checked before disclosure. Declared reverse-reference
+discovery composes that same source validation and disclosure with existing incoming
+entries; it adds no business edge inventory. Records are the request result; raw
+totals, summaries and work counters are excluded. A separate trusted diagnostic
+callback records budgeted work, including hidden candidates and the memory adapter's
+physical scan enumeration. This is not a timing confidentiality guarantee. Cached
+paths, authority discovery, schema/projection work and post-fetch byte/scan accounting
+remain distinct costs; see the exact limits in [the API](api.md#js-p4b2-authorized-request-composition).
 
 Readable semantic anchors expose only explicitly published summaries, possibly FULL
 summaries including hidden contributions; they never reveal unauthorized member IDs
