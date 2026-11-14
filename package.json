@@ -1,0 +1,22 @@
+{
+  "name": "@divyeshvora79909/kv-base",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": "./src/index.mjs",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "ajv": "8.20.0"
+  },
+  "description": "Declarative transactional augmented AVL engine prototype with composable Node APIs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DivyeshVora79909/kv-base.git"
+  }
+}

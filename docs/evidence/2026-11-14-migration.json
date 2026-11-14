@@ -1,0 +1,341 @@
+{
+  "checkpoint": "KV-Base extraction and JS-P4b.1",
+  "date": "2026-11-14",
+  "status": "accepted-local-volatile-prototype",
+  "provenance": {
+    "sourceRepository": "https://github.com/DivyeshVora79909/next-base",
+    "sourceCommit": "76b6e847cde8beef9d46a62e41b66c7f678d1492",
+    "sourceRoot": "prototypes/node-engine",
+    "destinationRepository": "https://github.com/DivyeshVora79909/kv-base",
+    "destinationRoot": ".",
+    "completedWorkingChanges": [
+      "src/catalog.mjs",
+      "src/index.mjs",
+      "src/authority.mjs",
+      "test/access-catalog.test.mjs",
+      "test/authority.test.mjs"
+    ],
+    "note": "JS-P4b.1 was finished from working changes and is first committed in this repository. Historical evidence is linked at its original revision, not relabeled as fresh acceptance.",
+    "copiedRuntimeExampleTestFilesVerifiedIdentical": 44,
+    "license": "MIT; predecessor copyright and permission notice retained",
+    "formatOnlyChanges": [
+      {
+        "path": "src/stage.mjs",
+        "change": "Removed one inherited extra blank line at EOF; no runtime change."
+      }
+    ]
+  },
+  "runtime": {
+    "node": "24.22.1",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "verification": {
+    "install": "npm ci --ignore-scripts in the empty extracted package (Node 24.22.1 on PATH)",
+    "command": "npm test in KV-Base (Node 24.22.1 on PATH)",
+    "tests": 171,
+    "passed": 171,
+    "failed": 0,
+    "skipped": 0,
+    "accessCatalogTests": 7,
+    "authorityTests": 9,
+    "relationExampleTests": 3,
+    "dependencyAudit": {
+      "command": "npm audit --omit=dev --json",
+      "vulnerabilities": 0
+    },
+    "sourceReview": "Independent source review plus coordinator inspection; optimized administrator-retention Boolean scan, rejected accessor options without execution and coerced record-header lookups. Final review found no concrete discrepancy in this bounded fixture scope.",
+    "readmeExample": {
+      "sources": 4,
+      "trees": 5,
+      "occurrences": 9,
+      "references": 3,
+      "claims": 3,
+      "total": "8",
+      "prefix": {
+        "sum": "8",
+        "minPrefix": "0"
+      }
+    },
+    "hostedCI": "Workflow configured with verified pinned official action v6 commits; no hosted run result claimed"
+  },
+  "claims": [
+    "clean Node-only repository: canonical source, tests, examples, setup, MIT license and application-linked architecture/handoff",
+    "previously implemented exact augmented AVL, transactional integrity and reactive settlement pass fresh migrated verification",
+    "private-by-default explicit resource access orders with dedicated model/membership views and trusted owner-header partition role, including composite partitions",
+    "pure fixture principal-DAG preparation, canonical identity, configurable graph budgets and per-actor scope without all-pairs descendant closure",
+    "owner-only action semantics mirror native policy: self/descendants/direct Group parents, narrower Delete, direct active Group/Tenant raw-grant inheritance only for Users, admin neither widens owners nor implicitly grants Use",
+    "one active User effective administrator retained; malformed graphs reject; handles and fixture input are detached/frozen",
+    "declarative reference examples demonstrate incoming indexes, 1:N, uniqueness-backed at-most-one 1:1, and N:M junctions with two derived reverse entries",
+    "next implementation obligations preserved in self-contained local docs with pinned optional predecessor sources"
+  ],
+  "limitations": [
+    "fixture authority functions are not wired into mutations or reads; raw engine APIs remain trusted",
+    "hydrated authorized owner-stream merge, authorized mutations/reference reads, explicit anchor-summary disclosure and fenced cursors remain open",
+    "index lifecycle and adaptive population/workload tools remain JS-P5; no full workbench or production readiness claim",
+    "only a serialized volatile memory adapter is supplied; persistent KV adapters, distributed concurrency, receipts, identity/network, services and deployment need independent gates",
+    "memory reverse-reference scans enumerate the store; existing metadata is not yet a supported authorized reverse-query API",
+    "scalar reference plus uniqueness guarantees at most one, not mandatory existence in both directions",
+    "pure authority handles do not track revocation/current sessions; future wrappers must load current authority inside transaction scope",
+    "logical read-byte budgets are post-fetch and are not hard heap/transfer caps",
+    "no Rust code, native storage stores, credentials, caches or historical acceptance binaries migrated"
+  ],
+  "files": [
+    {
+      "path": ".editorconfig",
+      "sha256": "3a151560c443f6fe8a734313554126e8625ff1ae0642d44115f9bd097b873390"
+    },
+    {
+      "path": ".gitattributes",
+      "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+    },
+    {
+      "path": ".github/workflows/test.yml",
+      "sha256": "fc5d6f3317eb03264862e21a094e53bb620447999729e1a9c7e16a639fbc9c66"
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "34a77a771322a6f8e6287b4981119f4cc1b78ab7c3fbd24e6ce98b9af1b19b84"
+    },
+    {
+      "path": ".nvmrc",
+      "sha256": "d9f318747a126ce2247661af67852b185def7789492eabfad7bba322be087c33"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "f0b3a6b887bba4047b8a6163a06742576b7b0123d5da2fd31d37855842c775df"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "b7a3901e29e8575516dda1b6f12b3bc3372b13962d4f48c8990b2c992aa3166d"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "8c3db6cdedbb9566ae7c591b85a1b53dcdbe494b4517e7ec53e7a1d458f43459"
+    },
+    {
+      "path": "README.md",
+      "sha256": "346783a4208635870061a8a7ec1f1f63de13d78b39517c17801a9179de423a09"
+    },
+    {
+      "path": "docs/api.md",
+      "sha256": "a171beb09359296cca27df218831a0ea81942290ba151ad51b8b24f3881b54da"
+    },
+    {
+      "path": "docs/architecture.md",
+      "sha256": "bcd8162e2834ece6215abe47451ba14f4ebecf0d71d39f4c76614acea5f7dbf0"
+    },
+    {
+      "path": "docs/capabilities.md",
+      "sha256": "b8f2202d095f2c1e6d8a78c3e9e9c01c81c4a84cf439124c5e4d55dc588788d3"
+    },
+    {
+      "path": "docs/checkpoints.md",
+      "sha256": "f1a700e07d209cf6d90e966ecbb7e6c7dae5b5554d5775e01bbbb877f2e62b3c"
+    },
+    {
+      "path": "docs/index-mathematics.md",
+      "sha256": "945f73babb5a615b3b574e02ae6643d40e3a5a1e933672d5b277b1b24c0704d3"
+    },
+    {
+      "path": "docs/relations.md",
+      "sha256": "489e0b8f59ec3a14563784cedd67a146b2b505c3c09259ed87f8ecdd6324843b"
+    },
+    {
+      "path": "examples/activity.mjs",
+      "sha256": "783cf062a1cfd6b94a5c7e8f9c6072907c3b66704be5edc1171a4b7187b09438"
+    },
+    {
+      "path": "examples/causal.mjs",
+      "sha256": "97e5a92404f848d392007a0918c0fa4f88ffdaed2032c2b46e91b75b33820ab6"
+    },
+    {
+      "path": "examples/relations.mjs",
+      "sha256": "991bd90edba0b41a217cde2f13aa861aa63d0ac60fa54adb384ed4e29ab4a064"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "c8d0f6da77a997d2843f709547f2ca319e01d12f08803b23ad57104733884233"
+    },
+    {
+      "path": "package.json",
+      "sha256": "15aceb35170d113934cc71f502ad27725ccdbd055438bb118cea68eb8c0d6cff"
+    },
+    {
+      "path": "src/authority.mjs",
+      "sha256": "56921e05798e3973e250b97c8968d15f08cd626a71aa6aef247a1f17d901a026"
+    },
+    {
+      "path": "src/calculation-identity.mjs",
+      "sha256": "9184c8536fce76469fe5d57b08359704f26894d592787fc8df35fb8aa1135f88"
+    },
+    {
+      "path": "src/calculation-oracle.mjs",
+      "sha256": "ffa9101f7c9143f3273033d80fe9fd38d82c6c27a2d8a7fd7a455c019ad8469a"
+    },
+    {
+      "path": "src/calculation-runtime.mjs",
+      "sha256": "af0030dd1349aa5ad449d7c188ceefae1a7bf68d048b0b8a89c7cf8ac614054f"
+    },
+    {
+      "path": "src/catalog.mjs",
+      "sha256": "a77de1bd15f541805e1c23dff60c7b80d34abd40ee475046c5456eb6e0611bf7"
+    },
+    {
+      "path": "src/check-reactive.mjs",
+      "sha256": "4cc628af20029fbedc76c1016d26cafc8915b3b7fef07c976fdefaf7504ef6ce"
+    },
+    {
+      "path": "src/check.mjs",
+      "sha256": "617ec50a1bc4e9344bdc806783f14e6b6b3ff526837cb66320a60cd4848f24af"
+    },
+    {
+      "path": "src/index.mjs",
+      "sha256": "455f8d11baedb4e2fc4539b3a8c98e2adb62d3a811f99a7a82647e4d1f0358b6"
+    },
+    {
+      "path": "src/keys.mjs",
+      "sha256": "51baf5d10f8f986a75aab64e9d56a798dfc54d055572f329a4a87669ae252b81"
+    },
+    {
+      "path": "src/memory.mjs",
+      "sha256": "43cf6766b1836ca51c1d40673b809ee977990d9194af89a5cfb0bc4df7905cc1"
+    },
+    {
+      "path": "src/monoids.mjs",
+      "sha256": "85dc3df657c99e0cb13d6bfbe4ff7ea948a54f564c6f63d62a9720113c178bc1"
+    },
+    {
+      "path": "src/mutate.mjs",
+      "sha256": "b75d590cdae3c3cc4ef9fce83e1ddc9d93859295dae2a6c80a08eef7407c1eda"
+    },
+    {
+      "path": "src/oracle.mjs",
+      "sha256": "481ad9814b3b9a99908d8977573e1cf33564264bd5541f178ef21f4a4a21f0b3"
+    },
+    {
+      "path": "src/potential.mjs",
+      "sha256": "6986d0afcd6c3264be99d38a78f5d4b75a08fa3c8104b5c7ebb0b42b596140b3"
+    },
+    {
+      "path": "src/range.mjs",
+      "sha256": "ad22206b915426172d521a0be6301cef55193d849170b49bc4da8f4f03f69571"
+    },
+    {
+      "path": "src/read-window.mjs",
+      "sha256": "d39138fb99df6aa1618d8f96c54239c120ec0b7f643457b4b45655f101895e3b"
+    },
+    {
+      "path": "src/routes.mjs",
+      "sha256": "9da6ea959fe6e20f09fd576c6d7583d67271d54b5f563112a259797cfba70ed8"
+    },
+    {
+      "path": "src/settlement.mjs",
+      "sha256": "221dd5e5e2544933555b0c1c8b1e092ea0a729357efae18f478a853b2f8be0a3"
+    },
+    {
+      "path": "src/stage.mjs",
+      "sha256": "07a0dcd9a493d2d52c13ab0f08df10ee967f1f0eaee3acce4f5e724718388466"
+    },
+    {
+      "path": "src/tree.mjs",
+      "sha256": "d398d9a4a478213754f6c5980fead0a61878c9ef7e62d01321265ee05783accb"
+    },
+    {
+      "path": "src/values.mjs",
+      "sha256": "b1fa33caf5b86cd22f1b99fec28647c78d1eb45d6be15a57f0820c75e2d2ca8c"
+    },
+    {
+      "path": "test/access-catalog.test.mjs",
+      "sha256": "1b3a6402878c42e74e853baead5b4777fd4036d64b1f364199fb625492284d47"
+    },
+    {
+      "path": "test/authority.test.mjs",
+      "sha256": "980f0a1b84dd35d3ef231ab7c409436ee4bd499bfc25ec5a0f8367e3ff9637f6"
+    },
+    {
+      "path": "test/calculation-catalog.test.mjs",
+      "sha256": "4e60552a420e2ba56125b265b5db107bd9f3ed9ec290a5d8595ca82f0c734d46"
+    },
+    {
+      "path": "test/calculation-oracle.test.mjs",
+      "sha256": "f64997765dd6301dd9ba4eebb51b5a50ca20a889c25172f8db7bca84dfe99e3d"
+    },
+    {
+      "path": "test/calculation-runtime.test.mjs",
+      "sha256": "ee75e0a92a6eaf3cb9e38b919c0b471f833dfaa40d51b0675b58185273108b2f"
+    },
+    {
+      "path": "test/catalog.test.mjs",
+      "sha256": "0f713814674df1cbf5d2efb8e76308dc5ea29a85e8357aeacb8e88d602cdad4d"
+    },
+    {
+      "path": "test/check-reactive.test.mjs",
+      "sha256": "57e0dde21bc49bf820b3a0186bbc6b57a8b1443fce5743384cdb42439fe69739"
+    },
+    {
+      "path": "test/composition.test.mjs",
+      "sha256": "698cfc4fd67a8402f1b74f3263d59ea6b0c255ffd3950e117f4ce6dee7e6c119"
+    },
+    {
+      "path": "test/integrity.test.mjs",
+      "sha256": "06b0b1a3f4eb68bbeb4439120525e9c29f4f14d630bf1f70ff4460a1faf2f961"
+    },
+    {
+      "path": "test/memory.test.mjs",
+      "sha256": "77dfa34a186311fe74eae50298a2501d155d1fb81d21dcb5ea3d1809389cc25c"
+    },
+    {
+      "path": "test/monoids.test.mjs",
+      "sha256": "9400a25b8867eb62af37df433345b1947a1af78b3b3218b55e1777be2b1e9590"
+    },
+    {
+      "path": "test/mutate.test.mjs",
+      "sha256": "e77387e52740502dfc17fbdd5af895345fa2b05e005792cdc2673089bfad987f"
+    },
+    {
+      "path": "test/oracle.test.mjs",
+      "sha256": "c1878444610637875005d58754f6ba39a95aab796eddb930b135fac3e3d5e72c"
+    },
+    {
+      "path": "test/potential.test.mjs",
+      "sha256": "7220bac08eaa0504fab0f47d1e6a97aa4a5e274cdd4a5434ec98645cea1e455b"
+    },
+    {
+      "path": "test/range.test.mjs",
+      "sha256": "9c053afb67d8ef3e0d409fb920d96ab578bc501308162db79ccfb9ee173aba46"
+    },
+    {
+      "path": "test/read-window.test.mjs",
+      "sha256": "7a1b975a7aecc755c2a299c71e0f8ce3f8a1b20adb361f40b3795f835732cbd8"
+    },
+    {
+      "path": "test/relations-example.test.mjs",
+      "sha256": "c0ba7c5ab061ac7f244de0f88e95bc6cd9490c0f3eb38bdd236d18b3fadce0b3"
+    },
+    {
+      "path": "test/routes.test.mjs",
+      "sha256": "731408b2368fed545255f96653a0f722d9ffc27c0d660c46d3120abc829f1c4a"
+    },
+    {
+      "path": "test/settlement-unit.test.mjs",
+      "sha256": "71829400e18a25f2340e1e4aa80c890b88632a2c8ba3bbff565983cf3148f64d"
+    },
+    {
+      "path": "test/settlement.test.mjs",
+      "sha256": "f765956cfa8def49ec965f425d46595a9eb63c39ba50d4c55e2a83ea4998934a"
+    },
+    {
+      "path": "test/staging.test.mjs",
+      "sha256": "33ca54ea2abc1b2e459388907300b3e44f87f73564359540d9fec0512e448169"
+    },
+    {
+      "path": "test/tree.test.mjs",
+      "sha256": "c074a1706aeb8532888c6dfa2236a4d668405d461439e600249d848df89514e3"
+    },
+    {
+      "path": "test/values.test.mjs",
+      "sha256": "da14dce4d0b363428facd160ed41424f5625995cc9a2ade024755020545c1512"
+    }
+  ]
+}

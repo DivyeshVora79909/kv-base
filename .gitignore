@@ -1,0 +1,19 @@
+node_modules/
+coverage/
+.artifacts/
+.local/
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Local secrets and database artifacts are never source.
+.env*
+!.env.example
+*.key
+*.pem
+*.db
+*.db-*
+*.redb
+*.redb-*
+*.sqlite
+*.sqlite-*
