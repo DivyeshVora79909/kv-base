@@ -41,7 +41,7 @@ export function lowerIndexes(definition) {
       if (indexes[id]) invalid('Duplicate or conflicting structural index definition');
       if (Object.hasOwn(declaration.views, id) || Object.hasOwn(declaration.contracts, id)) invalid('Conflicting structural index definition');
       const order = spec.orderFields.map(field => spec.roles[field]);
-      declaration.contracts[id] = { version: spec.version, partition: spec.partitionFields.map(field => spec.roles[field]), order: order.length === 1 ? order[0] : order, inputs: spec.inputs, aggregates: spec.aggregates, ...(spec.validators === undefined ? {} : { validators: spec.validators }) };
+      declaration.contracts[id] = { version: spec.version, partition: spec.partitionFields.map(field => spec.roles[field]), order, inputs: spec.inputs, aggregates: spec.aggregates, ...(spec.validators === undefined ? {} : { validators: spec.validators }) };
       declaration.views[id] = { contract: id };
       indexes[id] = { signature, view: id, ...spec };
     }
@@ -53,7 +53,7 @@ export function lowerIndexes(definition) {
       const id = indexId(binding.index);
       if (!indexes[id]) invalid('Unknown structural index declaration');
       if (!Array.isArray(binding.order) || binding.order.length !== indexes[id].orderFields.length) invalid('Wrong order binding arity');
-      binding.view = id; binding.order = binding.order.length === 1 ? binding.order[0] : binding.order; delete binding.index;
+      binding.view = id; delete binding.index;
     }
   }
   return { declaration, indexes };

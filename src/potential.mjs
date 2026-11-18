@@ -3,6 +3,7 @@ import { projectRecord } from './catalog.mjs';
 import { rootKey, nodeKey, occurrenceToken, potentialOwnerKey } from './keys.mjs';
 import { treeGet, treePut, treeDelete } from './tree.mjs';
 import { normalizeRange, belowRange, aboveRange } from './range.mjs';
+import { normalizeScope } from './index-declaration.mjs';
 
 const check = (ok) => { if (!ok) fail('CORRUPT_STATE', 'Missing or mismatched potential entry'); };
 const equal = (a,b) => a === undefined || b === undefined ? a === b : canonical(a) === canonical(b);
@@ -61,7 +62,8 @@ export async function potentialPredecessors(tx,catalog,tenant,reads,{maxVisits=I
   const visit=()=>{if(visits>=maxVisits)fail('POTENTIAL_BUDGET','Potential visit budget exhausted');visits++;};
   const lookup=async id=>{visit();const value=await tx.get(potentialOwnerKey(catalog,tenant,id));return value===undefined?undefined:owner(value);};
   const internal=potentialCatalog(catalog), bySlot=[];
-  for(const read of reads) {
+  for(const input of reads) {
+    const read = input?.kind === 'range' ? normalizeScope(catalog, input) : input;
     decodeDomain('string',read.slot);const producers=new Set();
     if(read.kind==='field') {
       const p=await lookup(decodeDomain('id',read.sourceId));if(p!==undefined)producers.add(p);

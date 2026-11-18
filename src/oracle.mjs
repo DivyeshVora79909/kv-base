@@ -57,7 +57,7 @@ export function sourceOracle(prepared, records) {
         return decodeDomain(domain, selected.value);
       };
       const partition = binding.partition.map((selector, index) => read(selector, declaration.partition[index]));
-      const order = read(binding.order, declaration.order), inputs = Object.create(null);
+      const order = Array.isArray(declaration.order) ? binding.order.map((selector, index) => read(selector, declaration.order[index])) : read(binding.order, declaration.order), inputs = Object.create(null);
       for (const [name, domain] of Object.entries(declaration.inputs)) inputs[name] = read(binding.inputs[name], domain);
       if (missing) {
         if (binding.onMissing === 'skip') continue;

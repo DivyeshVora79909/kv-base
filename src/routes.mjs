@@ -2,6 +2,7 @@ import { canonical, fingerprint, decodeDomain, compareDomain, fail } from './val
 import { normalizeRange, containsRange } from './range.mjs';
 import { nodeKey, occurrenceToken } from './keys.mjs';
 import { treePut, treeDelete, treeGet, readRoot } from './tree.mjs';
+import { normalizeScope } from './index-declaration.mjs';
 
 const own = (o,k) => Object.hasOwn(o,k);
 function fields(o, allowed) {
@@ -24,6 +25,7 @@ function scope(catalog,r) {
   return {view:r.view,partition:r.partition.map((x,i)=>decodeDomain(v.contract.partition[i],x)),aggregate:r.aggregate};
 }
 function registration(catalog,r) {
+  r=normalizeScope(catalog,r);
   fields(r,r?.kind==='field'?['slot','kind','sourceId','selector']:['slot','kind','view','partition','aggregate','lower','upper']);
   const slot=decodeDomain('string',r.slot);
   if(r.kind==='field') return {slot,kind:r.kind,sourceId:decodeDomain('id',r.sourceId),selector:selector(catalog,r.selector)};
@@ -50,7 +52,10 @@ function forest(catalog) {
 }
 function occurrence(catalog,tenant,subscriber,r) {
   const domain=catalog.views[r.view].contract.order;
-  const sentinel={integer:0n,string:'',id:'_',boolean:false}[domain];
+  // Unbounded lower intervals occupy a separate forest. Their placeholder key
+  // only needs the correct domain shape; it carries no business lower bound.
+  const placeholder=type=>Array.isArray(type)?type.map(placeholder):{integer:0n,string:'',id:'_',boolean:false}[type];
+  const sentinel=placeholder(domain);
   return {tenant,view:canonical([r.view,r.lower!==undefined]),partition:[...r.partition,r.aggregate],sourceId:subscriber,slot:r.slot,order:r.lower?.value??sentinel,contributions:{upper:r.upper?{order:r.upper.value}:{unbounded:true}}};
 }
 /** Return the normalized registration list for one subscriber (or an empty list). */
@@ -110,7 +115,7 @@ export async function affectedSubscribers(tx,catalog,tenant,changes,{maxVisits=I
   const {fields:rawFields=[],points:rawPoints=[]}=changes;
   if(!Array.isArray(rawFields)||!Array.isArray(rawPoints))fail('INVALID_ROUTE','Expected change arrays');
   const fieldsNormalized=rawFields.map(r=>{fields(r,['sourceId','selector']);return {sourceId:decodeDomain('id',r.sourceId),selector:selector(catalog,r.selector)};});
-  const points=rawPoints.map(r=>{fields(r,['view','partition','aggregate','order','sourceId','slot']);const s=scope(catalog,r);return {...s,order:decodeDomain(catalog.views[s.view].contract.order,r.order),sourceId:decodeDomain('id',r.sourceId),slot:decodeDomain('string',r.slot)};});
+  const points=rawPoints.map(raw=>{const r=normalizeScope(catalog,raw);fields(r,['view','partition','aggregate','order','sourceId','slot']);const s=scope(catalog,r);return {...s,order:decodeDomain(catalog.views[s.view].contract.order,r.order),sourceId:decodeDomain('id',r.sourceId),slot:decodeDomain('string',r.slot)};});
   const metrics={intervalNodes:0,directEntries:0,matches:0}, matches=new Map(), internal=forest(catalog);
   const visit=kind=>{if(metrics.intervalNodes+metrics.directEntries>=maxVisits)fail('ROUTE_BUDGET','Route visit budget exhausted');metrics[kind]++;};
   const add=(subscriber,slot)=>{matches.set(canonical([subscriber,slot]),{subscriber,slot});};

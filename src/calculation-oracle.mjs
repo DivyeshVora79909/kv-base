@@ -3,6 +3,7 @@ import { sourceOracle } from './oracle.mjs';
 import { generatedId, producerId } from './calculation-identity.mjs';
 export { generatedId, producerId } from './calculation-identity.mjs';
 import { canonical, fingerprint, decodeDomain, compareDomain, cloneData, freezeDeep, fail } from './values.mjs';
+import { normalizeScope } from './index-declaration.mjs';
 
 const own = (o, k) => Object.hasOwn(o, k);
 const cmp = (a, b) => compareDomain('string', a, b);
@@ -42,6 +43,7 @@ function direct(records, read) {
   return own(object, key) ? { exists: true, present: true, value: object[key] } : { exists: true, present: false };
 }
 function readShape(catalog, input, records) {
+  if (input?.kind === 'range') input = normalizeScope(catalog, input);
   if (input?.kind === 'field') {
     fields(input, ['slot','kind','sourceId','selector']);
     decodeDomain('id', input.slot); decodeDomain('id', input.sourceId);
@@ -76,7 +78,7 @@ function project(catalog, record) {
       return decodeDomain(domain,object[key]);
     };
     const partition = binding.partition.map((s,i) => select(s,contract.partition[i]));
-    const order = select(binding.order,contract.order), inputs = Object.create(null);
+    const order = Array.isArray(contract.order) ? binding.order.map((s,i) => select(s,contract.order[i])) : select(binding.order,contract.order), inputs = Object.create(null);
     for (const [key,domain] of Object.entries(contract.inputs)) inputs[key] = select(binding.inputs[key],domain);
     if (missing) { if (binding.onMissing === 'skip') continue; bad('Missing projection'); }
     result.push({ tenant: record.tenant, view: binding.view, partition, order, sourceId: record.id, slot: binding.slot, inputs });

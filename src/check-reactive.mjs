@@ -67,7 +67,7 @@ function potentialOccurrences(catalog,record) {
       return decodeDomain(domain,object[key]);
     };
     const partition = binding.partition.map((s,i) => select(s,declaration.partition[i]));
-    const order = select(binding.order,declaration.order);
+    const order = Array.isArray(declaration.order) ? binding.order.map((s,i) => select(s,declaration.order[i])) : select(binding.order,declaration.order);
     for (const [name,domain] of Object.entries(declaration.inputs)) select(binding.inputs[name],domain);
     if (missing) { ensure(binding.onMissing === 'skip','Potential missing projection'); continue; }
     result.push({tenant:record.tenant,view:binding.view,partition,sourceId:record.id,slot:binding.slot,order,contributions:{}});
@@ -80,6 +80,7 @@ function potentialOccurrences(catalog,record) {
  * ledger entry cannot always be inferred from present authored facts.
  */
 export async function checkReactive(tx,catalog,tenant,actualRecords) {
+  const sentinel = domain => Array.isArray(domain) ? domain.map(sentinel) : {integer:0n,string:'',id:'_',boolean:false}[domain];
   const authored = [], managed = [];
   for (const record of actualRecords) {
     const model = catalog.models[record.model];
@@ -119,7 +120,7 @@ export async function checkReactive(tx,catalog,tenant,actualRecords) {
     for (const r of registrations) {
       expectedRoutes.set(`${routeBase}row/${canonical([subscriber,r.slot])}`,r);
       if (r.kind === 'field') expectedRoutes.set(`${routeBase}direct/${canonical([r.sourceId,r.selector])}/${canonical([subscriber,r.slot])}`,{subscriber,slot:r.slot});
-      else intervals.push({tenant,view:canonical([r.view,r.lower !== undefined]),partition:[...r.partition,r.aggregate],sourceId:subscriber,slot:r.slot,order:r.lower?.value ?? {integer:0n,string:'',id:'_',boolean:false}[catalog.views[r.view].contract.order],contributions:{upper:r.upper ? {order:r.upper.value} : {unbounded:true}}});
+      else intervals.push({tenant,view:canonical([r.view,r.lower !== undefined]),partition:[...r.partition,r.aggregate],sourceId:subscriber,slot:r.slot,order:r.lower?.value ?? sentinel(catalog.views[r.view].contract.order),contributions:{upper:r.upper ? {order:r.upper.value} : {unbounded:true}}});
     }
   }
   inventory(await load(tx,routeBase),expectedRoutes,'Routes');

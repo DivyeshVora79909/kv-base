@@ -1,4 +1,5 @@
 import { validateRecord, projectRecord } from './catalog.mjs';
+import { normalizeScope } from './index-declaration.mjs';
 import { generatedId, producerId } from './calculation-identity.mjs';
 import { canonical, fingerprint, decodeDomain, freezeDeep, fail } from './values.mjs';
 import { sourceKey } from './keys.mjs';
@@ -41,6 +42,7 @@ async function readSource(tx,catalog,tenant,id) {
   return record;
 }
 async function readShape(tx,catalog,tenant,input) {
+  if (input?.kind === 'range') input = normalizeScope(catalog, input);
   if (input?.kind==='field') {
     fields(input,['slot','kind','sourceId','selector']);
     decodeDomain('id',input.slot); decodeDomain('id',input.sourceId);

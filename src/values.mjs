@@ -11,6 +11,15 @@ function text(value) {
 
 /** Explicit numeric wire domain. No implicit Number conversion or locale rules. */
 export function decodeDomain(domain, value) {
+  if (Array.isArray(domain)) {
+    if (!Array.isArray(value) || value.length !== domain.length
+      || Reflect.ownKeys(value).length !== value.length + 1) fail('INVALID_VALUE', 'Expected exact order tuple');
+    return domain.map((component, index) => {
+      const entry = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!entry?.enumerable || !Object.hasOwn(entry, 'value')) fail('INVALID_VALUE', 'Expected own order tuple components');
+      return decodeDomain(component, entry.value);
+    });
+  }
   switch (domain) {
     case 'integer':
       if (typeof value === 'bigint') return value;
@@ -29,6 +38,13 @@ export function decodeDomain(domain, value) {
 
 export function compareDomain(domain, left, right) {
   const a = decodeDomain(domain, left), b = decodeDomain(domain, right);
+  if (Array.isArray(domain)) {
+    for (let index = 0; index < domain.length; index++) {
+      const comparison = compareDomain(domain[index], a[index], b[index]);
+      if (comparison) return comparison;
+    }
+    return 0;
+  }
   if (domain === 'id' || domain === 'string') return Math.sign(Buffer.compare(Buffer.from(a), Buffer.from(b)));
   return a < b ? -1 : a > b ? 1 : 0;
 }

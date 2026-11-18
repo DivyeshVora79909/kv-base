@@ -52,7 +52,7 @@ test('identity pins used versions and declarations without hashing callback sour
   const b=definition(); b.models.source.calculations[0].slot='other'; assert.notEqual(a.identity,prepare(b).identity);
   assert.equal(a.identity,prepareCatalog(d,{calculations:{derive:implementation(),unused:{version:'9'}}}).identity);
   delete d.models.source.calculations; delete d.models.output.managed;
-  const p=prepareCatalog(d); assert.equal(p.identity,fingerprint({declaration:d,monoids:{},validators:{}})); assert.equal(p.identity,prepare(d).identity);
+  const p=prepareCatalog(d); assert.equal(p.identity,fingerprint({representationVersion:2,declaration:d,monoids:{},validators:{}})); assert.equal(p.identity,prepare(d).identity);
   for(const model of Object.values(p.models)){assert.equal(model.managed,false);assert.deepEqual(model.calculations,[]);}
 });
 

@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**R2 is the first unmet gate. R1 is accepted.** This roadmap starts from `8f337cd`, which includes
+**R3 is the first unmet gate. R1 and R2 are accepted.** This roadmap starts from `8f337cd`, which includes
 fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
 single-order-field and dedicated-access-view plan. Accept a gate only after its
 witnesses run against the implementation. The [API guide](api.md) records executable
@@ -48,7 +48,9 @@ occurrences, including the number and scope of any opening contributions.
 
 ## R2 — Composite ordering throughout the engine
 
-**Needs adaptation.** Existing AVL comparisons, bounds, range routing and owner-stream
+**Accepted 2026-11-18.** Fresh R2 verification: 221 tests passed on Node 26.12.0, including eight independent composite-order witnesses. See [R2 evidence](evidence/2026-11-18-r2.json).
+
+Existing AVL comparisons, bounds, range routing and owner-stream
 merge use a scalar order followed by source ID and slot. Carry the typed
 lexicographic order tuple followed by those same tie-breakers through projection,
 CRUD, rank/select, folds, batched reads, merge heads, subscription intervals and

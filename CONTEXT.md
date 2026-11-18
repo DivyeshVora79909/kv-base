@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**Start at R2, composite ordering. R1 is accepted and pushed.** The implementation baseline is
+**Start at R3, reference-path participation. R1 and R2 are accepted.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -54,14 +54,22 @@ bindings, unanchored country/year lookup, two contributors, two owner partitions
 repeated slots, explicit openings and atomic validator failure. Source hashes and
 commands are in [R1 evidence](docs/evidence/2026-11-18-r1.json).
 
-Start at R2. Model-owned `indexes` lower once into the prepared catalog. New
-memberships and raw scopes use `[declaringModel, partitionFields[], orderFields[]]`.
-See `examples/structural.mjs`. Multi-role order declarations prepare; singleton
-orders execute with the baseline scalar representation until R2 makes all structural
-orders typed tuples. Named fixtures remain regression coverage. R2 must adapt both
-independent oracles, range routes, potential outputs, settlement and reads, and fence
-incompatible state. R3 reference paths, R4 structural owner policy/publication and R5
-continuations/generations/tools remain unmet. No later gate is claimed from R1.
+R2 accepted on 2026-11-18: **221 tests passed**, zero failed/skipped, on Node
+26.12.0. Eight new independent witnesses compare tuple order, stable ties, ranks,
+noncommutative folds, complete/group bounds, batched pages, interval matches,
+potential inventories and incremental settlement against source recomputation.
+Second-component-only moves reach both old/new subscribers; identical projections
+and payload-only edits write no occurrences. See [R2 evidence](docs/evidence/2026-11-18-r2.json).
+R1 was published at `506e3e4`; HTTPS Git credentials were unavailable, so verified
+trees are published through the connected GitHub API with a checked branch head.
+
+Start at R3. Structural order bindings now remain typed arrays even for singleton
+orders, and prepared catalog identity pins representation version 2. Named scalar
+fixtures remain regression coverage. Mutations, authorized reads and checkStore
+fence catalog identity; raw transaction tree primitives remain privileged. R3
+must compile finite typed scalar paths, discover untouched contributors via old/final
+edges, reconcile old/final occurrences and route their changes through settlement.
+R4 owner planning/publication and R5 continuation/generation/tools remain unmet.
 
 Later gates retain persistent KV transactions/concurrency/crash/original-receipt
 recovery; identity/session and restore fencing; credentials/key custody; durable

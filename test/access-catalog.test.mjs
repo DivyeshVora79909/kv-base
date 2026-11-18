@@ -30,7 +30,7 @@ test('composite partition preserves other typed roles',()=>{
 test('private default, point-only opt-in and managed read opt-in are distinct',()=>{
   const d=definition(); delete d.models.Entry.access;
   const p=prepareCatalog(d); assert.equal(p.models.Entry.access,null);
-  assert.equal(p.identity,fingerprint({declaration:d,monoids:{},validators:{}}));
+  assert.equal(p.identity,fingerprint({representationVersion:2,declaration:d,monoids:{},validators:{}}));
   assert.equal(Object.hasOwn(p.definition.models.Entry,'access'),false);
   d.models.Entry.access={orders:{}};
   assert.notEqual(prepareCatalog(d).identity,p.identity);

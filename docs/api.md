@@ -62,10 +62,18 @@ its rotating AVL head. Stable source/slot identities distinguish repeated member
 An anchor creates no automatic opening: only explicitly authored memberships enter
 the fold. See `examples/structural.mjs` for an importable example.
 
-R1 executes singleton order bindings using the baseline scalar representation;
-composite declarations prepare now and their engine-wide execution is R2. The older
-named-view fixtures remain regression witnesses. Reference paths, structural owner
-planning, publication, continuations and generations follow in R3–R5.
+R2 carries typed lexicographic tuples through all structural indexes, including
+singleton orders as `[value]`. Comparison appends source ID and stable slot after
+the tuple. Bounds use `{value: [componentValues], inclusive?}` for an entire equal
+tuple group; adding both `sourceId` and `slot` cuts at one complete occurrence.
+Range calculations, reverse subscription intervals, potential inventories, rank/
+select, raw pages and owner merges preserve this order. Identical projections and
+payload-only edits perform no occurrence writes. Prepared catalogs expose
+`representationVersion: 2`, included in identity; mutations and authorized requests
+reject incompatible catalog state. Privileged transaction tree primitives assume
+caller-established catalog identity. R5 supplies explicit lifecycle opening/rebuild.
+The older named-view scalar fixtures remain regression witnesses. Reference paths,
+structural owner planning/publication, continuations and generations follow in R3–R5.
 
 ## Current functions
 

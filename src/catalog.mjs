@@ -166,10 +166,11 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
       used.add(order.view);
     }
   }
-  const identity = fingerprint({ declaration, monoids: usedMonoids, validators: usedValidators, ...(Object.keys(usedCalculations).length ? { calculations: usedCalculations } : {}) });
+  const representationVersion = 2;
+  const identity = fingerprint({ representationVersion, declaration, monoids: usedMonoids, validators: usedValidators, ...(Object.keys(usedCalculations).length ? { calculations: usedCalculations } : {}) });
   for (const [id, view] of Object.entries(views)) view.identity = fingerprint({ catalog: identity, view: id });
   for (const index of Object.values(indexes)) index.contract = views[index.view].contract;
-  return freezeDeep({ identity, definition: declaration, contracts, views, models, indexes });
+  return freezeDeep({ identity, representationVersion, definition: declaration, contracts, views, models, indexes });
 }
 
 export function validateRecord(prepared, record) {

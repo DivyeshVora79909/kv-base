@@ -9,7 +9,8 @@ function fields(value, allowed) {
   }
 }
 
-/** Detach and decode cuts. Scalar cuts bound a whole order-value tie group. */
+/** Detach and decode cuts. An order-value cut bounds the whole equal-tuple group;
+ * adding sourceId and slot bounds one complete stable occurrence. */
 export function normalizeRange(domain, options = {}) {
   fields(options, ['lower', 'upper']);
   const range = {};
