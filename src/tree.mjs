@@ -1,6 +1,7 @@
 import { decodeDomain, fail } from './values.mjs';
 import { compareKey, normalizeRange, belowRange, aboveRange } from './range.mjs';
 import { rootKey, nodeKey, occurrenceToken } from './keys.mjs';
+import { normalizeScope } from './index-declaration.mjs';
 
 function enter(seen, token) {
   if (seen.has(token)) fail('CORRUPT_STATE', 'Cyclic tree traversal');
@@ -8,6 +9,7 @@ function enter(seen, token) {
 }
 
 function context(tx, catalog, scope) {
+  scope = normalizeScope(catalog, scope);
   const view = catalog.views[scope.view];
   if (!view) fail('INVALID_VIEW', 'Unknown view');
   const contract = view.contract;

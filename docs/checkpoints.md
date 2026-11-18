@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**R1 is the first unmet gate.** This roadmap starts from `8f337cd`, which includes
+**R2 is the first unmet gate. R1 is accepted.** This roadmap starts from `8f337cd`, which includes
 fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
 single-order-field and dedicated-access-view plan. Accept a gate only after its
 witnesses run against the implementation. The [API guide](api.md) records executable
@@ -24,7 +24,9 @@ names, scalar order domains and dedicated per-model access orders. See the
 
 ## R1 — Structural declarations
 
-**Needs adaptation.** `prepareCatalog` already compiles model schemas and checks
+**Accepted 2026-11-18.** Fresh R1 verification: 213 tests passed on Node 26.12.0, including seven independent structural witnesses. See [R1 evidence](evidence/2026-11-18-r1.json). Composite declaration execution continues at R2.
+
+`prepareCatalog` already compiles model schemas and checks
 membership arity, domains, input bindings and unique slots. Replace public view
 names with a declaration owned by the model. Its signature is
 `[declaringModel, partitionFields[], orderFields[]]`. Preserve element order and

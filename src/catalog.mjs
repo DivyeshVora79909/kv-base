@@ -1,6 +1,7 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import { cloneData, freezeDeep, fingerprint, decodeDomain, assertJson, selectValue } from './values.mjs';
 import { standardMonoids } from './monoids.mjs';
+import { lowerIndexes } from './index-declaration.mjs';
 
 const fail = (message, code = 'INVALID_CATALOG') => { throw Object.assign(new Error(message), { code }); };
 const own = (o, k) => Object.hasOwn(o, k);
@@ -38,7 +39,7 @@ function selector(model, value, expected) {
 /** Compile immutable declarations and trusted implementation references once. */
 export function prepareCatalog(definition, { monoids = standardMonoids, validators = {}, calculations = {} } = {}) {
   assertJson(definition);
-  const declaration = cloneData(definition);
+  const { declaration, indexes } = lowerIndexes(definition);
   keysOnly(declaration, ['name','version','contracts','views','models','calculations','dependencies'], 'Catalog'); name(declaration.name, 'Catalog name'); name(declaration.version, 'Catalog version');
   for (const key of ['calculations', 'dependencies']) if (!emptyDeferred(declaration[key])) fail(`${key} are unsupported in JS-P1`);
   const contracts = Object.create(null), views = Object.create(null), models = Object.create(null), usedMonoids = Object.create(null), usedValidators = Object.create(null), usedCalculations = Object.create(null);
@@ -48,7 +49,7 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
     for (const key of ['calculations', 'dependencies']) if (!emptyDeferred(spec[key])) fail(`${key} are unsupported in JS-P1`);
     name(spec.version, 'Contract version');
     if (!Array.isArray(spec.partition)) fail('Contract partition must be an array');
-    spec.partition.forEach(domain); domain(spec.order); object(spec.inputs, 'Contract inputs'); Object.values(spec.inputs).forEach(domain);
+    spec.partition.forEach(domain); if (Array.isArray(spec.order)) { if (!spec.order.length) fail('Order requires domains'); spec.order.forEach(domain); } else domain(spec.order); object(spec.inputs, 'Contract inputs'); Object.values(spec.inputs).forEach(domain);
     const aggregates = Object.create(null);
     for (const [slot, aggregate] of Object.entries(object(spec.aggregates, 'Aggregates'))) {
       keysOnly(aggregate, ['monoid','input'], 'Aggregate');
@@ -76,7 +77,7 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
     views[id] = { ...spec, contract: contracts[spec.contract], contractId: spec.contract };
   }
   for (const [id, spec] of Object.entries(object(declaration.models, 'Models'))) {
-    keysOnly(spec, ['schema','references','uniqueness','memberships','managed','calculations','dependencies','access'], 'Model');
+    keysOnly(spec, ['schema','references','uniqueness','memberships','managed','calculations','dependencies','access','indexes'], 'Model');
     if (!emptyDeferred(spec.dependencies)) fail('dependencies are unsupported in JS-P3b.1');
     if (spec.managed !== undefined && typeof spec.managed !== 'boolean') fail('Model managed must be a boolean');
     const managed = spec.managed ?? false;
@@ -120,7 +121,11 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
       const view = views[membership.view]; if (!view) fail(`Unknown view ${membership.view}`);
       const contract = view.contract;
       if (!Array.isArray(membership.partition) || membership.partition.length !== contract.partition.length) fail('Wrong partition arity');
-      membership.partition.forEach((value, index) => selector(spec, value, contract.partition[index])); selector(spec, membership.order, contract.order);
+      membership.partition.forEach((value, index) => selector(spec, value, contract.partition[index]));
+      if (Array.isArray(contract.order)) {
+        if (!Array.isArray(membership.order) || membership.order.length !== contract.order.length) fail('Wrong order arity');
+        membership.order.forEach((value, index) => selector(spec, value, contract.order[index]));
+      } else selector(spec, membership.order, contract.order);
       object(membership.inputs, 'Membership inputs');
       if (Object.keys(membership.inputs).length !== Object.keys(contract.inputs).length || Object.keys(membership.inputs).some(key => !own(contract.inputs, key))) fail('Membership input mismatch');
       for (const [key, expected] of Object.entries(contract.inputs)) selector(spec, membership.inputs[key], expected);
@@ -163,7 +168,8 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
   }
   const identity = fingerprint({ declaration, monoids: usedMonoids, validators: usedValidators, ...(Object.keys(usedCalculations).length ? { calculations: usedCalculations } : {}) });
   for (const [id, view] of Object.entries(views)) view.identity = fingerprint({ catalog: identity, view: id });
-  return freezeDeep({ identity, definition: declaration, contracts, views, models });
+  for (const index of Object.values(indexes)) index.contract = views[index.view].contract;
+  return freezeDeep({ identity, definition: declaration, contracts, views, models, indexes });
 }
 
 export function validateRecord(prepared, record) {
@@ -184,7 +190,7 @@ export function projectRecord(prepared, input) {
     let missing = false;
     const read = (selector, expected) => { const selected = selectValue(record, selector); if (!selected.present) { missing = true; return undefined; } return decodeDomain(expected, selected.value); };
     const partition = membership.partition.map((selector, index) => read(selector, contract.partition[index]));
-    const order = read(membership.order, contract.order), inputs = Object.create(null);
+    const order = Array.isArray(contract.order) ? membership.order.map((value, index) => read(value, contract.order[index])) : read(membership.order, contract.order), inputs = Object.create(null);
     for (const [key, expected] of Object.entries(contract.inputs)) inputs[key] = read(membership.inputs[key], expected);
     if (missing) { if (membership.onMissing === 'skip') continue; fail(`Missing projection value in ${membership.slot}`, 'MISSING_PROJECTION'); }
     const contributions = Object.create(null);

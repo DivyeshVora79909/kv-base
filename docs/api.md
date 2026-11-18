@@ -42,24 +42,30 @@ and folds complete source facts; it never reads maintained indexes. It also chec
 final reference targets and unique claims. This deliberate whole-source operation is
 an inspector/test oracle, not a mutation algorithm.
 
-## Structural API transition
+## Structural declarations (R1)
 
-The examples and function signatures in this guide describe the shipped JS-P4b.2
-catalog. Current callers pass a named view in a raw scope, or a named model
-access order to `readAuthorized`. Each contract has one scalar order domain.
-Membership selectors read local fields, trusted headers or constants.
-`readIncomingAuthorized` checks Read on the target before checking the returned
-sources.
+Models declare `indexes: [{ version, partitionFields, orderFields, roles, inputs,
+aggregates, validators? }]`. Role domains are `id`, `string`, `integer` or
+`boolean`. The signature is `[declaringModel, partitionFields[], orderFields[]]`;
+both ordered arrays and their boundary enter identity. Roles need not be fields on
+the declaring model: contributors bind local selectors in `memberships: [{ slot,
+index: signature, partition: selectors[], order: selectors[], inputs, onMissing }]`.
+Unknown declarations, duplicate/conflicting signatures, role/domain mismatches and
+binding arity errors reject during preparation. The same prepared catalog compiles
+schemas and all summary implementations.
 
-R1–R4 will address an index by `[declaringModel, partitionFields[], orderFields[]]`,
-compile typed contributor mappings, admit composite order and finite reference
-paths, and derive owner-constrained access from the source's trusted owner binding.
-For example, in `['Invoice', ['id', 'owner'], ['effectiveAt']]` the arrays describe
-roles. An actual partition supplies values such as invoice I and owner A.
-The target reverse query applies record authorization to each returned source,
-including when an intermediate record is unreadable. R5 will specify continuation
-and lifecycle contracts against the structural catalog. The target design and
-acceptance cases are in [architecture](architecture.md) and [checkpoints](checkpoints.md).
+`resolveIndex(catalog, signature)` returns frozen declaration/contract metadata.
+Raw scopes accept `{ tenant, index: signature, partition: values[] }`. The signature
+contains a model name, never a record ID; an anchor is an explicit partition value.
+Unanchored country/year partitions work identically. Each populated partition owns
+its rotating AVL head. Stable source/slot identities distinguish repeated memberships.
+An anchor creates no automatic opening: only explicitly authored memberships enter
+the fold. See `examples/structural.mjs` for an importable example.
+
+R1 executes singleton order bindings using the baseline scalar representation;
+composite declarations prepare now and their engine-wide execution is R2. The older
+named-view fixtures remain regression witnesses. Reference paths, structural owner
+planning, publication, continuations and generations follow in R3–R5.
 
 ## Current functions
 

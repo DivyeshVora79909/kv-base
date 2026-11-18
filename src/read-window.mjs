@@ -1,6 +1,7 @@
 import { canonical, decodeDomain, fail } from './values.mjs';
 import { rootKey, nodeKey, occurrenceToken } from './keys.mjs';
 import { normalizeRange, compareKey, belowRange, aboveRange } from './range.mjs';
+import { normalizeScope } from './index-declaration.mjs';
 
 const invalid = () => fail('INVALID_READ', 'Invalid read window options');
 const corrupt = () => fail('CORRUPT_STATE', 'Invalid read window tree');
@@ -19,6 +20,7 @@ const bytes = value => Buffer.byteLength(canonical(value));
  * they do not bound heap allocation or network transfer. Hard limits return no page.
  */
 export function treeReadWindow(tx, catalog, scope, options) {
+  scope = normalizeScope(catalog, scope);
   fields(options, ['ranks', 'range', 'limits']);
   fields(options.limits, ['maxNodes', 'maxBatches', 'maxBytes', 'maxOutput', 'batchKeys']);
   const limits = { ...options.limits };

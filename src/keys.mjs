@@ -1,4 +1,5 @@
 import { canonical, decodeDomain, fail } from './values.mjs';
+import { normalizeScope } from './index-declaration.mjs';
 
 export const catalogKey = tenant => `catalog/${canonical(tenant)}`;
 export const sourcePrefix = tenant => `source/${canonical(tenant)}/`;
@@ -9,6 +10,7 @@ export const allNodesPrefix = (catalog, tenant) => space('node', catalog, tenant
 export const allIncomingPrefix = (catalog, tenant) => space('incoming', catalog, tenant);
 export const allClaimsPrefix = (catalog, tenant) => space('claim', catalog, tenant);
 function scopeParts(catalog, scope) {
+  scope = normalizeScope(catalog, scope);
   const view = scope && Object.hasOwn(catalog.views, scope.view) && catalog.views[scope.view];
   if (!view || !Array.isArray(scope.partition) || scope.partition.length !== view.contract.partition.length) fail('INVALID_SCOPE', 'Unknown view or incompatible partition');
   decodeDomain('id', scope.tenant);

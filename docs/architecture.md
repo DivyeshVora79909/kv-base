@@ -13,7 +13,7 @@ and one ordered value. Models contribute through stable membership slots.
 Access orders select dedicated model/slot views. The executable contracts and
 examples are in [the API guide](api.md).
 
-**Structural redesign (R1–R5).** The declaring model owns each index's role
+**Structural declarations accepted (R1); ordering and remaining work (R2–R5).** The declaring model owns each index's role
 domains, contribution types, summaries and validators. Its public identity is
 `[declaringModel, partitionFields[], orderFields[]]`. For example, the following
 three signatures address distinct indexes on the Invoice model.

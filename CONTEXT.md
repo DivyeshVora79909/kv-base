@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**Start at R1, structural index declarations.** The implementation baseline is
+**Start at R2, composite ordering. R1 is accepted and pushed.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -45,24 +45,23 @@ for source hashes, commands, example work counters and limits.
   and final transaction-loaded authority. Hidden managed repairs retain the same
   atomic settlement boundary. Fixture enforcement is not authentication (JS-P4b.2).
 
-## Resume here
+## Latest acceptance and resume
 
-Begin in [catalog preparation](src/catalog.mjs), the [activity example](examples/activity.mjs)
-and the [catalog tests](test/catalog.test.mjs). Today, contributors select a named view
-and supply a single order selector. R1 makes the declaring model and two ordered role
-arrays the public index identity. Implement and test the declaration, role bindings,
-conflict checks and stable slots first. R2 then carries typed order tuples through
-the tree, range subscriptions, settlement and reads. Keep the source oracle independent
-of the writer when you update it.
+R1 accepted on 2026-11-18: **213 tests passed**, zero failed/skipped, on Node
+26.12.0 after `npm ci` (zero audit vulnerabilities). The seven independent
+structural witnesses cover ordered signature arrays and boundaries, incompatible
+bindings, unanchored country/year lookup, two contributors, two owner partitions,
+repeated slots, explicit openings and atomic validator failure. Source hashes and
+commands are in [R1 evidence](docs/evidence/2026-11-18-r1.json).
 
-R3 adds reference-path participation. R4 adapts the existing owner policy and
-authorized operations to structural indexes and adds explicit anchor-summary
-publication. The current reverse reader requires Read on the target as well as
-the returned source. R4 bases disclosure of a returned record on that record's
-own policy across traversal paths. R5 covers continuations, generation lifecycle
-and developer tools. The original P4/P5 obligations are mapped in the
-[roadmap](docs/checkpoints.md). Keep the existing witnesses as regression coverage
-and record fresh evidence as each redesigned contract becomes executable.
+Start at R2. Model-owned `indexes` lower once into the prepared catalog. New
+memberships and raw scopes use `[declaringModel, partitionFields[], orderFields[]]`.
+See `examples/structural.mjs`. Multi-role order declarations prepare; singleton
+orders execute with the baseline scalar representation until R2 makes all structural
+orders typed tuples. Named fixtures remain regression coverage. R2 must adapt both
+independent oracles, range routes, potential outputs, settlement and reads, and fence
+incompatible state. R3 reference paths, R4 structural owner policy/publication and R5
+continuations/generations/tools remain unmet. No later gate is claimed from R1.
 
 Later gates retain persistent KV transactions/concurrency/crash/original-receipt
 recovery; identity/session and restore fencing; credentials/key custody; durable
