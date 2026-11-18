@@ -42,6 +42,25 @@ and folds complete source facts; it never reads maintained indexes. It also chec
 final reference targets and unique claims. This deliberate whole-source operation is
 an inspector/test oracle, not a mutation algorithm.
 
+## Structural API transition
+
+The examples and function signatures in this guide describe the shipped JS-P4b.2
+catalog. Current callers pass a named view in a raw scope, or a named model
+access order to `readAuthorized`. Each contract has one scalar order domain.
+Membership selectors read local fields, trusted headers or constants.
+`readIncomingAuthorized` checks Read on the target before checking the returned
+sources.
+
+R1–R4 will address an index by `[declaringModel, partitionFields[], orderFields[]]`,
+compile typed contributor mappings, admit composite order and finite reference
+paths, and derive owner-constrained access from the source's trusted owner binding.
+For example, in `['Invoice', ['id', 'owner'], ['effectiveAt']]` the arrays describe
+roles. An actual partition supplies values such as invoice I and owner A.
+The target reverse query applies record authorization to each returned source,
+including when an intermediate record is unreadable. R5 will specify continuation
+and lifecycle contracts against the structural catalog. The target design and
+acceptance cases are in [architecture](architecture.md) and [checkpoints](checkpoints.md).
+
 ## Current functions
 
 - `prepareCatalog(definition, { monoids, validators, calculations })`: compile JSON Schema and
@@ -286,9 +305,8 @@ retained reservations. Its full scans are deliberate. A missing retired reservat
 cannot always be inferred from present facts alone; historical ledger completeness
 remains a precondition. See [JS-P3b.2 evidence](https://github.com/DivyeshVora79909/next-base/blob/76b6e84/docs/checkpoints/js-p3b-settlement.json)
 Acceptance: 140 Node tests passed on Node 24.22.1, zero failed/skipped.
-Full JS-P3 is accepted within the local volatile adapter; JS-P4 bounded readers/owner-scoped
-merge/cursors and JS-P5 lifecycle/tools
-remain unaccepted.
+Subsequent checkpoints added raw windows and fixture-authorized owner-stream reads.
+Cross-request continuations and generation lifecycle remain open under R5.
 
 ## Explicit boundaries
 

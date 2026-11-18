@@ -41,6 +41,9 @@ Dependency audit reports zero vulnerabilities. MIT licensed; see [LICENSE](LICEN
 [.nvmrc](.nvmrc) selects the Node 24 baseline; the standard test workflow is checked
 in for CI. Hosted CI results are separate from this local verification.
 
+Development starts at R1, model-declared structural indexes. The example above
+uses the named-view API available at JS-P4b.2.
+
 Read [current handoff](CONTEXT.md), the [API guide](docs/api.md),
 [architecture](docs/architecture.md), [mathematics](docs/index-mathematics.md),
 [relations](docs/relations.md), [capability preservation](docs/capabilities.md) and

@@ -9,8 +9,8 @@ Preserve capabilities and obligations, rather than exported names or compatibili
 Legacy semantics are design inputs, not an instruction to port SurrealQL, its
 compiler, storage bindings or every business model. B+ tree replacement and
 SurrealDB coupling are outside the selected design. The target is ordinary Node
-functions over explicit state, one canonical authored model and reusable named
-augmented AVL index contracts. The Node implementation is authorized.
+functions over explicit state, one canonical authored model and model-declared augmented
+AVL indexes with structural identities. The Node implementation is authorized.
 
 ## Engine and model obligations
 
@@ -114,7 +114,9 @@ single canonical model requirement by themselves.
 
 ## Prototype versus production acceptance
 
-JS-P1–JS-P5 are new acceptance obligations, not renamings of native checkpoints:
+The original JS-P1–JS-P5 plan below records which obligations the prototype took
+from the native baseline. The [active roadmap](checkpoints.md) carries the
+unfinished work into R1–R5 and identifies which existing contracts need adaptation.
 
 - JS-P1: canonical model specification/compiler, independent source oracle and
   in-memory transactional adapter with explicit atomic staging and read semantics.

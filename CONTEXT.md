@@ -1,6 +1,10 @@
 # Current context and local handoff
 
-KV-Base is the clean Node engine repository. The extracted implementation originates
+**Start at R1, structural index declarations.** The implementation baseline is
+`8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
+R1–R5 sequence, the acceptance tests and the work each gate can reuse.
+
+KV-Base is the standalone Node engine repository. The extracted implementation originates
 from [Next-Base at 76b6e84](https://github.com/DivyeshVora79909/next-base/tree/76b6e84/prototypes/node-engine),
 plus the small JS-P4b.1 access/fixture-authority checkpoint completed during migration.
 Historical test results and native contracts remain pinned predecessor references;
@@ -10,16 +14,13 @@ failed/skipped, on Node 24.22.1 after a fresh dependency installation here.
 `npm audit --omit=dev` reports zero vulnerabilities. The suite includes seven access
 declaration tests, nine fixture-authority tests and three relation-example tests.
 See [fresh evidence](docs/evidence/2026-11-14-migration.json) for provenance and hashes.
-The migration run stopped at this verified commit as requested; that stop applied
-to that run, not to future agents authorized to continue.
 
 **JS-P4b.2 accepted on 2026-11-14:** fixture-authorized owner-stream reads, reverse
 reference disclosure and authored mutations, preserving atomic reactive settlement.
 Fresh verification: **206 Node tests passed**, zero failed/skipped, on Node 26.12.0
 after `npm ci`. This includes 16 independent authorized-reader witnesses and 19
 authorized-mutation witnesses. See [checkpoint evidence](docs/evidence/2026-11-14-js-p4b2.json)
-for source hashes, commands, example work counters and limits. This continuation
-stops at JS-P4b.2 after commit and push, following the user's latest instruction.
+for source hashes, commands, example work counters and limits.
 
 ## What exists
 
@@ -46,24 +47,22 @@ stops at JS-P4b.2 after commit and push, following the user's latest instruction
 
 ## Resume here
 
-The repository contains the migration through JS-P4b.2. Inspect Git status and
-the latest commits before resuming; do not assume this page supersedes later evidence.
+Begin in [catalog preparation](src/catalog.mjs), the [activity example](examples/activity.mjs)
+and the [catalog tests](test/catalog.test.mjs). Today, contributors select a named view
+and supply a single order selector. R1 makes the declaring model and two ordered role
+arrays the public index identity. Implement and test the declaration, role bindings,
+conflict checks and stable slots first. R2 then carries typed order tuples through
+the tree, range subscriptions, settlement and reads. Keep the source oracle independent
+of the writer when you update it.
 
-Next gate is **JS-P4b.3**, explicitly published anchor summaries if needed: disclosure of a
-FULL summary never grants contributor IDs/bodies. **JS-P4c** adds exact-query,
-catalog/authority and relevant-state continuation fencing, including payload-only
-updates and owner transfers. No global mutation/revision counter. Full P4 is open.
-Current request results expose no summary or continuation. Shared raw business
-summaries retain hidden contributors; only trusted callers may inspect them.
-Reverse reads still use physically linear memory scans; budgets count that work
-after scanning. Authority providers must obtain current fixture policy inside the
-request transaction. See [API contracts](docs/api.md#js-p4b2-authorized-request-composition)
-and [the relation contract](docs/relations.md).
-
-**JS-P5** follows P4: writer-paused generation build/check/activation/retirement,
-ordinary importable model inspection/population/workload functions and reproducible
-bounded measurements. Keep population tied to the same catalog, constraints and
-transaction outcomes. See [checkpoints](docs/checkpoints.md) for witnesses and gates.
+R3 adds reference-path participation. R4 adapts the existing owner policy and
+authorized operations to structural indexes and adds explicit anchor-summary
+publication. The current reverse reader requires Read on the target as well as
+the returned source. R4 bases disclosure of a returned record on that record's
+own policy across traversal paths. R5 covers continuations, generation lifecycle
+and developer tools. The original P4/P5 obligations are mapped in the
+[roadmap](docs/checkpoints.md). Keep the existing witnesses as regression coverage
+and record fresh evidence as each redesigned contract becomes executable.
 
 Later gates retain persistent KV transactions/concurrency/crash/original-receipt
 recovery; identity/session and restore fencing; credentials/key custody; durable

@@ -20,6 +20,13 @@ A(empty) = identity
 A(node) = A(left) combine lift(node) combine A(right)
 ```
 
+R1–R2 retain the size and aggregate equations above. The view becomes a structural
+index signature and the ordered value becomes a typed lexicographic tuple. Reordering
+components can change a prefix invariant even when the total sum stays the same.
+For entries of +100 followed by −80, the minimum prefix including the empty prefix
+is 0. Sorting by owner first could put −80 first, yielding a minimum of −80.
+Choose each invariant's index according to the order it actually constrains.
+
 An ordered monoid needs identity and associativity; commutativity and inverses are
 unnecessary. Rotations preserve inorder and regroup operands without permuting them.
 Repair descendants before ancestors. A noncommutative prefix witness must distinguish

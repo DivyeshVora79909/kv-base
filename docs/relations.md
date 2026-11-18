@@ -41,6 +41,13 @@ The independent [authorized read](../test/authorized-read.test.mjs) and
 missing Use, owner transfers, retargeting and atomic rollback. The existing full
 source-derived checker remains unchanged.
 
+Under the planned R3 contract, an intermediate reference edit can change a
+membership even when its contributing record stays untouched. R4 also changes
+the target Read requirement described above. A reverse lookup must apply the
+same tenant, action and owner checks to each returned record as a direct lookup.
+Reading a source through a relation does not disclose the target body. The
+[checkpoint roadmap](checkpoints.md) specifies the move, rollback and visibility tests.
+
 ## Performance and adapter boundary
 
 The memory adapter enumerates the store for a prefix scan, then sorts matching keys. Even an incoming scan with `limit: 1` currently performs O(store size) enumeration; this is not an indexed O(log n) reverse lookup. Its declared scan cost includes overlay enumeration and sorting matching results. Future durable adapters can implement ordered prefix/range scans while preserving transactional point, absence and range guards. No future adapter complexity or durability guarantee is demonstrated by this fixture.

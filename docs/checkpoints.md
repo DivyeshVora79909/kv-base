@@ -1,317 +1,137 @@
 # Checkpoints and acceptance gates
 
-JS-P1–JS-P3 and JS-P4a were accepted in the predecessor Node package. The next
-small checkpoint, JS-P4b.1, adds prepared access declarations and fixture authority.
-Fresh migration and JS-P4b.1 verification passed 171 tests on Node 24.22.1, zero
-failed/skipped; see [evidence](evidence/2026-11-14-migration.json) and
-[CONTEXT](../CONTEXT.md). JS-P4b.2 hydration/authorized mutation, JS-P4b.3 explicit
-anchor summary disclosure if required, and JS-P4c continuation remain open.
-Full JS-P4 and JS-P5 are not complete. Historical links below are provenance only.
+**R1 is the first unmet gate.** This roadmap starts from `8f337cd`, which includes
+fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
+single-order-field and dedicated-access-view plan. Accept a gate only after its
+witnesses run against the implementation. The [API guide](api.md) records executable
+contracts and the [handoff](../CONTEXT.md) records the last accepted revision.
 
-Each checkpoint produces a small runnable contract before expanding its scope.
-Use ordinary Node ESM functions and explicit state, with Node's built-in test runner.
-Keep a single JSON Schema authority; JS-P1 selects Ajv 8.20.0 with explicit synchronous
-schema/field-binding limits and a pinned dependency graph. Bindings supply ordinary
-functions for semantics that JSON Schema cannot express. Do not add a second DSL,
-new CLI, or Python/Rust implementation for this prototype.
+## Baseline
 
-## JS-P0 — Review the bounded design
+| Historical gate | Verified capability to carry forward |
+| --- | --- |
+| JS-P1–P2 | One Ajv-prepared catalog, serialized memory transactions, guarded absent/empty reads, lawful ordered summaries, AVL sizes/ranks, stable source/slot identities, atomic memberships, typed references and final uniqueness checks. |
+| JS-P3 | Old/new interval routing, zero-output producer discovery, cycle rejection and incremental settlement compared with a separate full-snapshot computation. |
+| JS-P4a | Budgeted batched rank/key windows and complete occurrence cuts within one snapshot. |
+| JS-P4b.1 | Private-by-default fixture policy, owner-DAG scope and action grants. Migration verification at `f67e6d5` recorded 171 passing tests. |
+| JS-P4b.2 | Source hydration, same-snapshot owner-stream merge, incoming reads and atomic authorized mutations. Verification at `8f337cd` recorded 206 passing tests. |
 
-**Entry:** inspect the source revision, current transaction and owner-only contracts,
-index mathematics, and the retained-capability inventory. Record uncertainty rather
-than inferring parity from reused names.
+The earlier counts describe their original test runs. The baseline uses public view
+names, scalar order domains and dedicated per-model access orders. See the
+[migration evidence](evidence/2026-11-14-migration.json),
+[JS-P4b.2 evidence](evidence/2026-11-14-js-p4b2.json) and
+[checkpoint history at 8f337cd](https://github.com/DivyeshVora79909/kv-base/blob/8f337cdfe0ef0c33c0aac175b84eb22e4932fdf9/docs/checkpoints.md).
 
-**Deliverable:** reviewed architecture, capability mapping and this dependency-ordered
-plan. Name the contract/binding boundary, occurrence identity, transaction guarantees,
-independent oracle and explicit exclusions. Resolve implementation-blocking semantics
-before enabling JS-P1; leave adapter-specific deployment choices at their own gates.
+## R1 — Structural declarations
 
-**Witnesses:** trace source mutation through references, multiple memberships,
-settlement, validation and one publication. Trace an absent uniqueness claim and an
-empty dependency result; neither may disappear as an optimization. Review one hidden
-contributor and one owner transfer against disclosure and final authorization rules.
+**Needs adaptation.** `prepareCatalog` already compiles model schemas and checks
+membership arity, domains, input bindings and unique slots. Replace public view
+names with a declaration owned by the model. Its signature is
+`[declaringModel, partitionFields[], orderFields[]]`. Preserve element order and
+the boundary between arrays in lookup, equality and catalog identity. The model
+owns role types, ordered summaries and validators. Contributors bind their local
+fields or headers to those roles. R3 extends these bindings to explicit reference
+paths. Keep one prepared catalog and the existing Ajv validator.
 
-**Exit:** coordinating review finds every current capability retained in the roadmap
-or explicitly deferred with an acceptance gate. Implementation is authorized; planning review itself supplies no implementation proof.
+**Exit.** Two different contributing models bind different field names to the
+same signature. Moving a role from the partition array to the order array selects
+a different declaration. Reject incompatible types, arity and conflicting
+definitions at preparation. The declaring model identifies a schema. An optional
+anchor identifies a record. Each populated partition has its own rotating AVL head.
+An unanchored declaration can partition by ordinary typed fields such as country
+and year. Verify lookup without a record ID in that tuple. Only a declared opening
+contribution enters the fold. Check two owner partitions
+and repeated participation by distinct stable slots against independently enumerated
+occurrences, including the number and scope of any opening contributions.
 
-**Limits:** neither a production replacement decision nor a production schedule.
-The prototype is not a promise of production readiness in one to three days.
+## R2 — Composite ordering throughout the engine
 
-## JS-P1 — Executable specification and transaction boundary
+**Needs adaptation.** Existing AVL comparisons, bounds, range routing and owner-stream
+merge use a scalar order followed by source ID and slot. Carry the typed
+lexicographic order tuple followed by those same tie-breakers through projection,
+CRUD, rank/select, folds, batched reads, merge heads, subscription intervals and
+potential outputs. Define inclusive/exclusive bounds both for a whole equal-tuple
+group and for one complete occurrence. Version the representation and reject opening
+incompatible state unless an explicit validated rebuild is available.
 
-**Entry:** JS-P0 reviewed and implementation flag supplied. Select and document exact
-key comparison, numeric domain, stable identities and JSON Schema subset.
+**Exit.** Hold the first component constant and edit only the second. Prove the
+row moved, both old and new intervals reached the right subscribers, and no-op
+projections caused no occurrence writes. Compare ties, ranks, folded values,
+bounded pages, potential matches and settled outputs with independent sorting,
+direct interval matching and full recomputation from source facts. Preserve exact
+domains and noncommutative fold order.
 
-**Deliverable:** a prepared model compiler over named index contracts and bindings;
-source schemas, references, memberships, summaries, dependencies and developer metadata
-share this authority. Reject missing bindings, unstable/duplicate slots, incompatible
-root/key/summary declarations and unsupported schema features before opening a model.
-Add a transactional in-memory KV adapter with explicit attempt/snapshot state,
-point and range reads, same-view batch reads, overlay reads and one atomic commit.
-Protect existence, absence and scanned ranges; retained read guards survive no-op
-elimination. Aborted attempts publish no partial source or derived rows.
+## R3 — Reference-path participation
 
-**Witnesses:** start with a flat source-fact oracle that enumerates declared
-occurrences and independently sorts/folds them without tree or writer-cache helpers.
-Test malformed declarations and schema/binding disagreement, absent-key reservation,
-protected empty scans, read-your-writes/deletes, no-op guards and failure before each
-publication boundary. Verify deterministic preparation identity from declared semantics.
+**Missing.** Current membership projection reads the contributing record's fields
+and headers. Compile finite, explicitly declared scalar reference paths, including
+each hop's allowed target type and policy for missing values. Use existing typed
+forward/reverse references and the old and staged final graph to find affected
+contributors when an intermediate edge or terminal field changes. Reconcile their
+old and final projections, summaries, routes and derived outputs within the same
+transaction.
 
-**Exit:** compiler and adapter contract tests pass using Node's test runner; independent
-expected results can be derived from source facts with reproducible seeds. Document
-what serialization the memory adapter enforces and which guards its interface retains.
+**Exit.** Move an issue from invoice A to invoice B while leaving its tax records
+untouched. Check removal and insertion in both business indexes and the corresponding
+owner partitions, including empty results and downstream calculations. Compare with
+a full source traversal and recomputation. A failing final validator must restore
+sources, reverse edges, occurrences, aggregates and outputs together.
 
-**Limits:** memory serialization is not distributed conflict, crash, durability or
-unknown-ACK proof. Do not introduce a production global population counter, revision
-counter or write lock to make tests pass. A test scheduler/commit mutex is a labeled
-memory-adapter mechanism, not a production coordination design.
+## R4 — Owner-constrained queries and mutations
 
-## JS-P2 — Generic occurrence tree and final integrity
+**Needs adaptation.** Keep the existing tenant, action and owner-DAG checks,
+hydration, same-snapshot merge and both-owner/final-authority mutation checks. Bind
+accessible owners to a structural partition role backed by the **contributing
+record's trusted owner header**. A related record's owner has a different meaning.
+Plan ordinary compatible partitions and merge cached stream heads by the R2 order.
+Direct, indexed and reverse-reference results use the same record policy. The
+traversal path grants no permission and requires no extra read grant on an
+intermediate record. Keep internal integrity checks over complete business state.
+Explicit publication of selected full-anchor summaries is still missing.
 
-**Entry:** JS-P1's lawful bindings and atomic overlay are usable by both writer and oracle.
+**Exit.** One invoice has a visible +100 entry and a hidden −80 entry. A reader
+authorized for the declared full balance sees 20 and only their permitted rows.
+Keep hidden IDs, bodies, ranks and undeclared counts private. Transfer a row
+between owners with checks on both. Revoke group access and verify visibility
+changes without rewriting source rows. Compare results to an independently
+filtered, ordered source inventory. Exercise tenant boundaries, repeated
+memberships, equal keys and discovery, candidate, refill, node and byte budgets.
 
-**Deliverable:** generic linked AVL CRUD with left/right navigation, mandatory structural
-size, and ordered monoid summaries. Parent/previous/next links are optional only when
-a demonstrated need justifies maintaining them. Include point/select/range-fold reads
-needed by subsequent settlement. Root anchor identity
-is independent of the rotating head. Each stable record/slot occurrence has exactly
-one validated root and total-order key with deterministic record/slot ties.
-Support multiple independently projected memberships, including unit-summary count
-indexes. Maintain typed reverse references and protected uniqueness claims atomically.
-Release obsolete claims before final acquisitions; validate final root and prefix
-invariants against the staged graph, including joint repairs and hidden dependents.
+R3 and R4 can proceed independently once R1 and R2 establish the representation.
+Their joint witness moves an ancestor and transfers a contributor between owners
+in the presence of tied order keys. Check the committed inventory, public rows
+and summary in one snapshot.
 
-**Witnesses:** independent inventory reconstructs every expected occurrence, reverse
-reference and uniqueness claim from source records. Verify links, ordering, balance,
-heights, subtree sizes, root counts and every ordered subtree fold after rotations,
-inserts, edits, deletes, root moves and rollback. Include duplicate slots, two slots in
-one root, root deletion guards, swaps, forward references and reference retargets.
-Use lawful noncommutative summaries, equal-key ties, prefix-vs-final-total
-counterexamples, overflow policy and CRUD/permutation/metamorphic sequences.
+## R5 — Continuations, generation lifecycle and developer tools
 
-**Exit:** flat oracle, tree invariants and transactional rollback witnesses agree.
-Unchanged membership projections cause no occurrence writes; other changed memberships
-still update. Count visits and physical writes separately per changed occurrence.
+**Missing.** Raw windows and fixture reads already share a transaction snapshot.
+Cross-request continuation requires fencing on the exact structural query, total
+position, catalog/generation, authority and relevant data state. Test payload-only
+edits, owner transfers and revocation. An unrelated edit must allow progress without
+a global mutation counter.
 
-**Limits:** logarithmic AVL paths assume bounded comparisons and constant-size summary
-work; they do not bound whole cascades, bytes, authorization or variable-width arithmetic.
-A uniqueness declaration and a reference remain different contracts.
+**Exit.** Exercise resume/rejection across requests. With writers paused, build a
+candidate generation from source facts, independently check its memberships, routes
+and derived state, then activate atomically. A failed rebuild leaves the active
+generation usable. Fence old cursors and retire the old generation after in-flight
+reads finish. Expose inspection, adaptive population and workload functions through
+ordinary Node imports, using the same prepared catalog and actual transaction
+outcomes. Run reproducible seeded workloads with skew, ties, rejection and rollback.
+Report runtime, dataset, budgets, visits, reads/writes, bytes and latency. Account for
+memory scans and stream setup separately from AVL path length.
 
-JS-P2 verification: 60 Node tests passed on Node 24.22.1, zero failed/skipped.
-Accepted scope: linked AVL insert/update/delete with structural sizes and ordered
-folds; transactional occurrence reconciliation, final typed references and unique swaps;
-trusted point/select/range reads; and complete active-generation independent inventory
-checking. No-op projections retain guarded O(h) lookups with zero occurrence writes.
-The memory adapter's prefix scan still enumerates the Map; reference guards therefore
-add scan work. `allPrefixes` validators consume witness summaries such as `minPrefix`,
-not arbitrary per-prefix quantification. Last deletion validates the identity summary;
-live empty anchors and generation lifecycle remain deferred. This checkpoint does not
-supply authorization or reactive settlement. See the linked evidence for executable
-witnesses and the [API guide](api.md) for composition.
+## Verification and subsequent gates
 
-## JS-P3 — Dependency settlement and key-range routing
+For each implementation checkpoint, run the relevant independent witnesses and
+the Node test suite. Record the revision or tested source digest, runtime,
+commands, counts and remaining limits before advancing the handoff. The expected
+inventory and order must be derivable from source facts independently of the
+writer's projection, routing and tree traversal.
 
-JS-P3 is split into evidence gates; accepting internal primitives does not accept
-the whole checkpoint.
-
-- **JS-P3a — staging, complete cuts and reverse routing:** internal attempt-local
-  `createMutation` stages source/tree edits and validates the joint final graph at
-  finish; typed ranges distinguish whole-value ties from complete occurrence cuts;
-  reverse field/range registrations support replace/read/affected-subscriber operations.
-  Verify multi-stage repairs/rollback, tie-bound edges, empty registrations, retargets,
-  conservative interval pruning and explicit visit-budget rejection against flat scans.
-  [JS-P3a evidence](https://github.com/DivyeshVora79909/next-base/blob/76b6e84/docs/checkpoints/js-p3a.json): accepted with 81 Node tests on
-  Node 24.22.1, zero failed/skipped. Routing reports
-  actual visits and has worst-case O(R) interval work; memory prefix scans remain linear.
-- **JS-P3b — integrated settlement:** prepare versioned catalog callbacks for resolve
-  and evaluate; declare a potential-emission inventory before evaluation so producers
-  with zero current outputs remain part of final-graph closure and cycle detection.
-  Wire routing to old/new positions, settle the final graph with explicit cycle checks,
-  and manage zero-output creation, deactivation, reactivation and deletion atomically.
-  Compare with independent full recomputation, including joint repairs, changed routes,
-  empty inputs and command-order permutations. This gate is accepted locally below.
-  JS-P3b has two bounded subgates:
-  1. **JS-P3b.1 — contracts and full-snapshot reference:** prepare versioned model
-     calculations and managed models; resolve authored-only topology, reserve complete
-     potential outputs including null emissions, detect potential cycles before synchronous
-     evaluation, and independently derive final inventories/routes. Accepted with 102 Node
-     tests on Node 24.22.1, zero failed/skipped:
-     [reference evidence](https://github.com/DivyeshVora79909/next-base/blob/76b6e84/docs/checkpoints/js-p3b-oracle.json). Complete authored snapshots
-     and historical reservation ledgers are caller preconditions. Full scans/sorts,
-     pairwise edge checks and repeated topological scans may be quadratic or higher;
-     producer/edge caps are not whole-work budgets. This is not an incremental writer.
-  2. **JS-P3b.2 — integrated incremental writer:** connect callbacks, staged edits,
-     routes, managed reservation ledgers, final-graph closure/cycle checks and evaluation;
-     compare committed state with the independent reference and verify rollback. This
-     is accepted for the local volatile adapter: 140 Node tests on Node 24.22.1, zero
-     failed/skipped. See [settlement evidence](https://github.com/DivyeshVora79909/next-base/blob/76b6e84/docs/checkpoints/js-p3b-settlement.json).
-     The writer follows routes/potential AVL indexes without tenant-wide source/producer
-     scans; one transaction publishes public/private state, joint final checks and live
-     potential empty-scope validation. Explicit logical budgets/metrics do not bound
-     callbacks or physical memory scans. Independent same-snapshot checking covers active
-     inventories; missing retired ledger history is not inferable from present facts.
-     JS-P4/JS-P5 entry gates are unchanged.
-
-Intermediate staging is local overlay state, not a valid published graph or a guarantee
-of managed/private-output rules by itself. JS-P3b.2 integrates these rules through public
-mutation and independent checking; full JS-P3 is accepted locally. The complete JS-P3 obligations follow.
-
-**Entry:** JS-P2 supplies valid point/range aggregate reads and final-graph integrity.
-
-**Deliverable:** explicit direct field dependencies and typed root/order/key-range
-dependencies; route changed old and new positions to affected registrations. Resolve
-declared selectors and use a tracked transaction read facade for dynamic dependencies,
-including absent/empty reads; arbitrary JavaScript reads are not automatically tracked. Settle
-from the staged final graph using a deduplicated pending work set and an explicit
-acyclic dependency order. Reject causal cycles with a useful bounded diagnostic.
-Preserve subscriptions whose current result is empty and manage creation, retargeting,
-deactivation, reactivation and deletion of managed outputs and registrations together.
-
-**Witnesses:** compare incremental settlement with a separate full recomputation from
-source facts. Exercise diamonds, several inputs changing one dependent, moved bounds,
-old/new root moves, empty-to-nonempty and nonempty-to-empty results, zero-output
-producers, parent edits, joint repairs and command-order permutations. Deliberately
-omit an invalidation in a mutation test and show the independent check detects it.
-Demonstrate failed cycles publish nothing and repeated pending work does not duplicate
-outputs or lose changes arriving during settlement.
-
-**Exit:** resulting records, memberships, routes and summaries match recomputation;
-each registration's inputs and lifecycle are accounted for. Report actual routing
-visits, matches, recomputations and writes, including adversarial overlap.
-
-**Limits:** interval stabbing's output-sensitive bound requires separate proof;
-AVL balance alone does not establish it. Rank/select are reads, not reactive rank-window
-dependencies. Clock advancement needs an explicit future temporal/wake adapter.
-
-## JS-P4 — Bounded readers and owner-scoped merge
-
-JS-P4 is implemented through three acceptance gates. Passing a raw read gate does
-not grant access to its counts, member identities or summaries:
-
-- **JS-P4a — raw same-snapshot windows:** `treeReadWindow(tx, catalog, scope, options)`
-  intersects an optional half-open **absolute occurrence-rank** window with optional
-  typed key cuts. Cache fetched nodes, batch each independent frontier and scatter
-  output by rank; never select every output rank separately. Child-root metadata
-  probes count as reads because parent nodes do not store separate child sizes.
-  Explicit finite node/batch/output/encoded-byte budgets reject the complete call
-  on exhaustion. Adjacent windows or exclusive complete cuts compose only within
-  the same transaction; they are not cross-request cursors. Byte accounting checks
-  encoded values after the adapter fetch, so it does not cap earlier cloning,
-  transport or actual heap use. Accepted with 152 Node tests on Node 24.22.1, zero
-  failed/skipped: [JS-P4a evidence](https://github.com/DivyeshVora79909/next-base/blob/76b6e84/docs/checkpoints/js-p4a.json). Twelve reader tests
-  cover independent expected rows, same-snapshot composition, bounded work, budgets,
-  corruption and integration with public mutation. This is not authorization acceptance.
-- **JS-P4b.1 — prepared access and fixture authority:** optional private-by-default
-  model access orders bind one dedicated view/slot to a trusted owner-header `id`
-  partition role, with arbitrary other supported typed roles. Prepare an acyclic
-  same-tenant principal graph, retain an active User administrator, resolve owner
-  scope and raw immediate User-parent grants, and test pure `permits`. Admin does
-  not widen owner scope or grant Use. Malformed plans/graphs and exhausted explicit
-  graph budgets reject. This slice supplies neither hydrated reads nor mutation
-  enforcement; fresh migration verification remains recorded in CONTEXT.
-- **JS-P4b.2 — hydration, merge and authorized mutation:** validate occurrence/source
-  agreement, cache/merge permitted stream heads on one snapshot and budget setup,
-  discovery, candidates and refill. Enforce before/after owner and final authority
-  plus authorized reference changes; compare with an independently filtered oracle.
-  Reuse hydration/disclosure for declared reverse-reference candidates as well;
-  incoming entries already exist. Do not duplicate business edges or expose raw
-  reverse scans as authorized APIs. Account for physical adapter scan work.
-  **Accepted locally on 2026-11-14:** 206 tests passed on Node 26.12.0, zero
-  failed/skipped. Sixteen new reader witnesses use an independent source-filtered
-  oracle, including a 150-entry mutation history, hidden shared-summary contributors,
-  identity corruption, exact budget edges and protected same-snapshot reads.
-  Nineteen mutation witnesses cover both owners, final policy effects, explicit Use,
-  fresh generated targets and full rollback of hidden settlement. Raw independent
-  checkers remain unchanged. See [fresh evidence](evidence/2026-11-14-js-p4b2.json).
-  Only `{ records }` / `{ applied }` are request results; work counters stay in a
-  trusted callback. Node work is bounded separately from physical memory scans and
-  post-fetch bytes. This accepts fixture enforcement, not authentication, cursor
-  fencing, summary publication or production persistence. The current run stops
-  after committing and pushing this checkpoint at the user's request.
-- **JS-P4b.3 — explicit anchor summary disclosure, if needed:** publish only declared
-  anchor summaries; FULL hidden contributions never reveal contributor IDs/bodies.
-- **JS-P4b overall — disclosure and owner-stream composition:** validate hydrated sources
-  against occurrences, declare trusted owner-partition/resource bindings, apply
-  fixture authority and merge cached heads across permitted streams. Include
-  candidate/setup/refill budgets, both-owner transfer and summary disclosure.
-  Raw counts do not become visible counts. No authentication acceptance follows.
-- **JS-P4c — continuation fencing:** bind serialized continuation to exact query,
-  model and authority plus relevant data state, including payload-only changes and
-  owner transfers. Use snapshot identity or scope-local invalidation, never a
-  universal mutation counter. Resume must reject or explicitly restart on change.
-
-**Entry:** JS-P2 index integrity and JS-P3 settled final views pass; a trusted raw reader may
-be developed after JS-P2, but public acceptance waits for JS-P3 and owner-policy fixtures.
-
-**Deliverable:** same-snapshot count-pruned batched rank/range traversal and hydration,
-with explicit candidate, node, batch, byte and output budgets and continuation behavior.
-Distinguish raw occurrence rank from visible filtered rows. Implement scoped k-way
-merge only across declared streams of one opted-in resource/order under owner-only
-fixtures. Cache heads, advance the popped stream and bound setup/refill work.
-
-**Witnesses:** compare linked traversal, batch traversal and flat sorted expectations
-for empty roots, ties, composite bounds, rank edges, continuation and budget exhaustion.
-Exercise self, strict descendants, direct group parents, tenant-parent exclusion,
-missing action grants, private records and hidden contributors to public summaries.
-Owner transfers require access to both owners and change relevant cursor partitions.
-Bind cursors to model/query, total-order position, scope/authority and relevant data
-revision semantics; test payload-only changes and resume rejection/restart policy.
-
-**Exit:** authorized rows, continuation and disclosure agree with an independently
-filtered oracle. Report stream discovery and initial seeks, candidates, nodes, bytes,
-batches and writes; test that all reads share one adapter snapshot.
-
-**Limits:** fixture authorization is not authentication/session migration acceptance.
-No global visible rank or arbitrary cross-resource union is implied. A batch count is
-not a network RTT count; k-way initialization and rejected candidates still cost work.
-
-## JS-P5 — Index lifecycle, composed tools and bounded demonstration
-
-**Entry:** JS-P1–JS-P4 pass and catalog/format identities are explicit.
-
-**Deliverable:** build, independent validation, activation and retirement of declared
-indexes. Use a writer-paused baseline: freeze writes, build from source facts, validate,
-then publish all affected catalog/source/root/route/derived state atomically. Candidate
-memberships and routes have separate generation-scoped keys. A failed build leaves
-the previous active identity usable. Activation invalidates old-generation cursors;
-retire storage after admitted in-flight reads finish, not after unbounded idle cursors.
-Compose importable developer functions for model inspection, source checking,
-population and workloads; use standard REPL/scripts rather than a new command parser.
-Population reuses model contracts, typed pools, quotas and caller strategies; transaction
-validation remains authoritative for hidden/final-state constraints.
-
-**Witnesses:** compare rebuilt inventory with JS-P1's oracle, inject failure during build
-and activation, reject incompatible cursors/models, and test retirement preconditions.
-Prove candidate writes/cleanup cannot overwrite active generations, and test a changed
-index definition with dependent calculations and validators; either settle all affected
-state atomically or explicitly reject that unsupported migration class.
-Population exercises skew, ties, multiple memberships, dependency diamonds, rejection
-and rollback with reproducible seeds. Benchmark a declared bounded workload across
-several sizes and membership counts; disclose hardware/runtime, dataset, seed, limits,
-setup costs, node visits, reads, writes, batches, bytes and latency distribution.
-
-**Exit:** a reviewer can import functions, populate, mutate, query, rebuild and validate
-one bounded demonstration with documented commands and complete acceptance evidence.
-Compare logical work as well as elapsed time; timing does not prove complexity.
-
-**Limits:** paused writes are an intentional baseline, not online backfill acceptance.
-No live-provider, multi-host, production capacity or full migration claim follows.
-
-## Gates after the prototype
-
-Persistent adapters must separately establish conflict and protected-range semantics,
-concurrent uniqueness/final-graph invariants, rollback, crash/reopen and durable original
-receipts. Unknown commit outcomes require original request/status recovery; a timeout
-must never cause a fresh mutation. Test lost ACKs against a real persistent adapter.
-
-Full authorization/session migration must retain current authority, both-owner transfer,
-revocation, restore fencing and disclosure behavior. Secure credentials/providers,
-durable outbox intent, charged starts, fencing, fact/application separation and unknown
-provider outcomes retain their own integration gates. The capability roadmap retains
-all existing obligations, including deferred objects, recurrence and live invalidation.
-
-Production capacity and rollout require representative topology, contention, retention,
-backup/restore, operational limits and staged migration evidence. These are separate
-from JS-P5's demonstration; retain existing production behavior until replacement evidence
-covers each retained capability. Prefer this dependency order; revise checkpoint cuts
-when a concrete counterexample exposes a prerequisite, recording the reason and limits.
+Persistent transaction conflicts, crash/reopen, protected ranges and original
+receipt recovery require a durable adapter. Session authentication, restore
+fencing, credentials and key custody, durable effect intent, provider fencing and
+unknown outcomes, object lifecycle, services and deployment retain separate gates.
+Capacity, backup/restore, staged rollout and online migration require their own
+evidence. See the [preservation inventory](capabilities.md) for retained application
+and operational obligations.

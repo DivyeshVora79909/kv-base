@@ -1,7 +1,8 @@
 # Agent instructions
 
-Read [CONTEXT.md](CONTEXT.md) for current status and next acceptance gates.
-Check Git status before editing; preserve unrelated work.
+Read the [current handoff](CONTEXT.md) and the [R1–R5 roadmap](docs/checkpoints.md)
+before choosing work. Start with the first unmet acceptance gate. Check Git
+status and the current commit before editing.
 
 - `src/` owns the reusable Node ESM engine; `test/` owns independent witnesses;
   `examples/` owns small importable demonstrations. Use Node 24+, `npm ci`, `npm test`.
@@ -16,9 +17,14 @@ Check Git status before editing; preserve unrelated work.
   ordered monoid laws, final-state atomicity, protected absent/empty reads and
   source-derived independent checking. Never infer logarithmic whole-transaction
   cost from an AVL path or borrow predecessor evidence as fresh acceptance.
-- Models are private by default. Fixture authority is not authentication or enforced
-  query/mutation authorization. Admin never widens owner scope or grants Use.
-  Keep both-owner/final-authority checks and summary/member disclosure distinct.
+- Address new indexes by `[declaringModel, partitionFields[], orderFields[]]`.
+  Keep both ordered arrays intact. Stable occurrence slots identify repeated
+  participation. Verify derived state against independently reconstructed source facts.
+- Models are private by default. The authorized entry points enforce fixture
+  policy. Raw APIs are privileged. Check tenant, action and source owner, including
+  both owners on transfer and final authority. Admin grants ordinary actions within
+  owner scope. Use requires an explicit grant. An anchor summary discloses only
+  the fields its publication contract permits.
 - Verify changed behavior with appropriate independent tests. Record runtime,
   command, source identity and limits in fresh checkpoint evidence. Commit coherent
   verified checkpoints and follow the user's current push/continuation instruction.

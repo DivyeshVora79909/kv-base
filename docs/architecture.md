@@ -5,82 +5,63 @@ Current implementation and next work are recorded in [CONTEXT](../CONTEXT.md) an
 from retained reader, lifecycle and production obligations. Rust references describe
 the predecessor only; this repository runs Node directly.
 
-## 1. One declaration authority, three index concepts
+## 1. Index declarations and bindings
 
-Author trusted local ESM modules containing JSON Schemas, declarative metadata and
-ordinary function implementations. Prepare an immutable catalog once. Native/remote
-clients may submit data and declared operations, never executable source/functions.
-Public schemas and population/query metadata are projections of the same catalog.
-JSON Schema `$ref` references a schema, not a database record.
+**Shipped baseline (JS-P4b.2).** The prepared catalog compiles JSON Schema
+2020-12 with Ajv, names each view, and gives its contract a typed partition tuple
+and one ordered value. Models contribute through stable membership slots.
+Access orders select dedicated model/slot views. The executable contracts and
+examples are in [the API guide](api.md).
 
-| Concept | Responsibility |
-| --- | --- |
-| Contract | Typed partition roles, one logical ordered role, input/contribution shape, monoid identities/combine/finalize, validator scopes |
-| Named view | Distinct index identity using a contract; explicitly separate effective/created/other semantic orders |
-| Model binding | Eligibility plus field/reference projections into a named view, stable occurrence identities |
-
-Example is explanatory configuration, not a promised API or a second language:
+**Structural redesign (R1–R5).** The declaring model owns each index's role
+domains, contribution types, summaries and validators. Its public identity is
+`[declaringModel, partitionFields[], orderFields[]]`. For example, the following
+three signatures address distinct indexes on the Invoice model.
 
 ```js
-const balance = {
-  partition: [recordIdSchema, recordIdSchema],
-  order: exactIntegerSchema,
-  inputs: { incoming: exactIntegerSchema, outgoing: exactIntegerSchema },
-  aggregates: { net: netPrefixMonoid },
-  validators: [{ scope: "allPrefixes", implementation: nonnegativePrefix }]
-};
-const views = {
-  effectiveBalance: { contract: balance },
-  createdTotals: { contract: totalsOnlyContract }
-};
-const binding = {
-  fields: { account: "accountId", owner: header("owner"), amount: "amount" },
-  memberships: [
-    { view: "effectiveBalance", partition: ["account", "owner"],
-      order: "effectiveAt", inputs: { incoming: "amount", outgoing: zero } },
-    { view: "createdTotals", partition: ["account", "owner"],
-      order: header("createdAt"), inputs: { incoming: "amount", outgoing: zero } }
-  ]
-};
+['Invoice', ['id'],          ['effectiveAt']]
+['Invoice', ['id', 'owner'], ['effectiveAt']]
+['Invoice', ['id'],          ['owner', 'effectiveAt']]
 ```
 
-Field selectors/constants are prepared projections; callbacks are trusted pure
-implementations. Other models can map different names to the same semantic roles.
-Same contract does not imply same view; identical field spelling does not establish
-compatible units, types or financial meaning. A declared view admits compatible
-bindings from several models only when their contribution/order semantics agree.
-No implicit field-presence permission: eligibility/missing/null behavior is declared;
-malformed required input fails rather than silently leaving the index.
+The prepared catalog preserves component order and both array boundaries. A
+contributor maps its own fields, trusted headers or explicitly declared reference
+paths into the roles. For the second signature a Tax can supply the invoice ID
+through its Issue, its own owner header, and its effective date. Other models can
+use different field names for the same roles. Preparation checks arity, domains,
+and binding provenance, and rejects conflicting definitions of one signature.
+The signature identifies the declaration across callers. The catalog fingerprint
+also covers behavior such as aggregate and validator versions so changed semantics
+can require a new generation. Trusted function implementations run locally.
 
-Use stable named IDs plus explicit behavior/format identities, not concatenated
-field names or `Function.toString()` hashes. Canonical typed descriptors form catalog
-fingerprints; trusted function IDs/versions and artifact provenance pin behavior.
-Functions are not serialized closures. Duplicate incompatible view definitions fail
-preparation; duplicate binding occurrences fail unless intentionally distinct.
-Partition tuples are typed and ordered in encoding, but `(a,b)` versus `(b,a)`
-group the same records when all values are fixed; no prefix-access power follows
-merely from maintaining a separate AVL per complete tuple.
+The declaring model is a schema. An optional semantic anchor is a record such as
+Invoice I. Each populated partition has its own AVL head, which can rotate. An
+anchor contributes an opening amount only through an explicit binding with a
+defined scope and stable slot. Creating another owner partition cannot duplicate
+an invoice-wide opening contribution. A partition key identifies a complete tuple.
+Queries spanning several partitions must discover the applicable tuples and merge
+streams whose order is compatible with the requested order.
 
 ## 2. Occurrences, tree structure and arithmetic
 
-Conceptual keys, not a frozen physical encoding:
+R1–R2 retain generation-scoped membership and tree identities while changing the
+index and order components. The following keys describe the target semantics.
 
 ```text
-tree       = (tenantNamespace, catalogGeneration, viewId, partitionTuple)
-membership = (tenantNamespace, catalogGeneration, sourceId, viewId, stableBindingOccurrence)
-orderKey   = (projectedOrderedValue, sourceId, stableBindingOccurrence)
+tree       = (tenantNamespace, catalogGeneration, indexSignature, partitionTuple)
+membership = (tenantNamespace, catalogGeneration, sourceId, indexSignature, stableBindingOccurrence)
+orderKey   = (projectedOrderTuple, sourceId, stableBindingOccurrence)
 ```
 
-One logical order can be time, integer, text or another declared total-order domain;
-stable ties do not count as a second user ordering role. Start with exact integers
-and deterministic binary string order, plus stable IDs; no locale-dependent comparator,
-NaN, implicit timestamp coercion or unsafe integer conversion. Tenant isolation is
-mandatory even when partition roles are ordinary fields. Root identity is the tree's
-scope, not whichever member currently occupies its rotating AVL root.
-Physical membership, route and cleanup keys are generation-scoped, even when logical
-source/view/occurrence identity survives a rebuild. Candidate construction must never
-overwrite active-generation entries. Selectors may address trusted source-header
-metadata such as created-at; clients cannot forge those headers through body fields.
+Within a partition, compare order tuple components lexicographically by their
+declared domains, then source ID and stable slot. A cut on the full tuple bounds
+the entire tie group. Adding source ID and slot locates one occurrence in that
+group. Insert, delete, rank, folds, windows, interval routing, potential-output
+discovery and merged reads must agree on these comparisons and open/closed bounds.
+Preserve exact integer arithmetic and deterministic UTF-8 string order. Check the
+maintained order and subscriber matches against an independent source-derived
+reference. A store with an incompatible key format requires explicit rejection or
+rebuild. Candidate generation keys must be disjoint from the active generation.
 
 Each occurrence owns left/right links, height or balance metadata, structural size
 and summaries. Root headers locate roots; parent/previous/next links are optional
@@ -134,8 +115,12 @@ valid swaps. Protect missing keys as well as existing keys. Stage all authored r
 before checking forward references; reject unresolved final references. Reference
 cycles and forbidden causal cycles are distinct. Generic cascade/nullify is deferred.
 Cross-parent equality or chronological predicates are explicit rules, not inferred
-from matching reference types. Explicit reference-derived dependencies cover updates
-to parent values, including hidden dependents and previously empty target scopes.
+from matching reference types. R3 compiles finite, scalar reference paths from these declarations. A change to
+an intermediate relation must find contributors through the original and final
+edges and reread affected fields in the transaction. Moving an Issue to a new
+Invoice reprojects its Taxes even when no Tax body changed. Both invoices' trees,
+owner partitions, and downstream outputs settle before final validation. Hidden
+dependents and previously empty targets participate in the same rollback boundary.
 
 Conceptual mutation pipeline (ordinary functions, one transaction owner):
 
@@ -252,7 +237,7 @@ descendants and direct Group parents; Delete is self/strict descendants. Direct 
 parent is not ordinary data scope; tenant-grant inheritance is separate. Admin satisfies ordinary action grants except Use, and does not widen ordinary data scope. Create checks requested owner; update checks both
 old and new owners before CAS diagnostics and against final authority. Keep engine
 repairs privileged while authorizing client commands and retargeted references.
-No readers/read_by/indexes/inference. The principal DAG must be acyclic and same-tenant.
+Owner scope comes from an acyclic, same-tenant principal DAG.
 Prototype uses explicit fixture authority; this is not a production authentication API.
 
 JS-P4b.2 supplies separate request functions that obtain fixture authority inside
@@ -263,9 +248,9 @@ effects in that transaction therefore cannot bypass final checks. Raw writer and
 repair primitives remain privileged. No new CAS, session or credential protocol is
 implied. Authorized results omit raw derived scopes and guard inventories.
 
-For scoped reads, declare owner as a partition role and k-way merge accessible owner
-streams with one comparator/tie order, bounded initialization and candidate work.
-An authorization-candidate view must bind that role to the trusted source owner;
+The shipped reader opens one partition per accessible owner and merges streams in
+order with bounded initialization and candidate work. In the baseline catalog the
+dedicated view must bind its owner partition role to the trusted source owner;
 a similarly named arbitrary body field is insufficient. Preparation checks that
 binding and the selected resource/action plan, with final per-record disclosure.
 K-way merge is a general multi-stream algorithm, not an authorization primitive alone.
@@ -285,13 +270,25 @@ physical scan enumeration. This is not a timing confidentiality guarantee. Cache
 paths, authority discovery, schema/projection work and post-fetch byte/scan accounting
 remain distinct costs; see the exact limits in [the API](api.md#js-p4b2-authorized-request-composition).
 
-Readable semantic anchors expose only explicitly published summaries, possibly FULL
-summaries including hidden contributions; they never reveal unauthorized member IDs
-or bodies. A generic partition without a record anchor needs an explicit read policy.
-Do not assume a partition tuple grants access. Cursors bind catalog/view/partition,
-query and authority/snapshot-or-scope revision; changed relevant state rejects or
-restarts explicitly. Scope-local fencing may coordinate necessary shared reads;
-no universal population/revision write on every mutation.
+R4 binds the existing owner decision to ordinary structural indexes using the
+contributor's trusted source owner. A record reached directly, through an indexed
+list, or through reverse references must satisfy the same tenant, action and
+owner checks. Knowing the traversal path neither widens access nor requires a
+separate Read grant on a record used only as a lookup key. The shipped reverse
+reader still checks Read on the lookup target, so this is a change to that API.
+Authority changes alter the eligible streams without rewriting business rows.
+Transfers check both owners and settle affected memberships atomically.
+
+R4 also lets a readable anchor publish a declared FULL summary. An invoice can
+publish a balance of 20 from a visible +100 and a hidden −80 while its member
+page discloses only the permitted source records. A summary grants no contributor
+identities, bodies or undeclared counts. Publishing an aggregate from an unanchored
+partition requires an explicit disclosure policy.
+
+R5 cursors bind the structural query, catalog, authority and relevant data state,
+including payload edits and owner transfers. Changed dependencies reject the cursor
+or trigger an explicit restart. Scope-local fencing allows unrelated writes to proceed
+without updating a global revision counter.
 
 ## 6. Storage, index lifecycle and limits
 
@@ -335,9 +332,8 @@ exhaustion returns rejection or incomplete evidence, never a false integrity pas
 ## 7. Composition, dependencies and unresolved gates
 
 Public surface should represent real capabilities: prepare catalog, transact/read,
-plan/install/remove views, source-derived checking, and population/workload tools.
-Names can change during JS-P1; maintain one implementation behind direct calls and
-future RPC handlers. Internal balancing/secret/worker helpers are not remotely callable.
+source-derived checking and the R5 lifecycle, population and workload tools.
+Use the same prepared structural catalog for those tools and future RPC handlers. Internal balancing/secret/worker helpers are not remotely callable.
 No wrapper around each filesystem operation, loop or process command; no bespoke CLI.
 Keep population candidates caller-owned, seeded and proposal-local; commit/reject
 updates available reference space/uniqueness/fanout only after authoritative outcome.
@@ -369,6 +365,6 @@ retained guarantees and missing behaviors; omission from the prototype is not de
 | --- | --- |
 | Exact JSON Schema subset, codecs and supported Node/Ajv versions | JS-P1 compatibility/dependency check; explicit integer/string order baseline above |
 | Reverse-interval reporter and its actual adversarial bound | JS-P3 algorithm witness; never substitute rank-window enumeration or claim a proof from AVL balance |
-| Reuse of current population/workload code versus replacement | JS-P5 demonstrate equivalent constraints with the same prepared catalog; compare maintenance surface |
-| Native Node persistent client and concurrency mapping | After JS-P5; choose only after client support and real adapter conformance review |
+| Reuse of current population/workload code versus replacement | R5 demonstrate equivalent constraints with the same prepared catalog; compare maintenance surface |
+| Native Node persistent client and concurrency mapping | After R5; choose only after client support and real adapter conformance review |
 | Online migration, custom floating/variable-size algebras, reactive rank windows | Outside initial acceptance; require explicit semantics and cost evidence before adding |
