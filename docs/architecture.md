@@ -385,6 +385,15 @@ Fake providers own an independent durable ledger; live capability claims require
 their own evidence. Restoring an older pending intent requires an external recovery
 fence, addressed by D5 before restored workers are enabled.
 
+D2b stores private delivered-proof protocol metadata beside D2a session metadata,
+while its encrypted delivery intent is an ordinary D3 Effect. Operator contacts and
+delivery principal are fixed host inputs. Beginning admission never returns a code;
+the worker marks delivery only from the current accepted provider fact. Completion
+protects enrollment, contact digest, credential revision, expiry and incarnation,
+then commits one-use proof consumption with sealed original session issuance.
+Failed original or recovery guesses consume the same bounded allowance. Delivery
+does not grant authority: each session still uses the current owner graph.
+
 Public surface should represent real capabilities: prepare catalog, transact/read,
 source-derived checking and the R5 lifecycle, population and workload tools.
 Use the same prepared structural catalog for those tools and future RPC handlers. Internal balancing/secret/worker helpers are not remotely callable.

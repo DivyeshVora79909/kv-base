@@ -21,3 +21,4 @@ export { createKeyring } from './keyring.mjs';
 export { createIdentity } from './identity.mjs';
 export { effectModels, effectRevisionId, EFFECT_QUEUE, EFFECT_STARTS, createCredentialCustody, acceptEffectInTransaction, createEffectWorker } from './effects.mjs';
 export { createEmailProvider, createSmsProvider, createFakeEmailClient, createFakeSmsClient, createFakeProviderServer } from './providers.mjs';
+export { createIdentityProofs } from './identity-proofs.mjs';

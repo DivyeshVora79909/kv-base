@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**D2b is the first unmet gate. R1–R5, optional SQLite D1, D1F, D2a and D3 are accepted.**
+**D4 is the first unmet gate. R1–R5, optional SQLite D1, D1F, D2a, D2b and D3 are accepted.**
 The durable primary is FoundationDB. One Node service accepts writes and may
 execute disjoint transactions concurrently through the ordered transactional KV
 adapter. SQLite remains an optional serialized adapter. This roadmap starts from `8f337cd`, which includes
@@ -209,6 +209,13 @@ keys, one existing authority graph, bounded authentication attempts, expiry,
 revocation and an external restore incarnation. Actor/tenant comes from validated
 sessions; initial and final authority checks remain in the transaction. Original
 session issuance recovery must not store plaintext bearer credentials in receipts.
+D2b accepted 2026-11-19: **434 tests passed**, zero failed/skipped, Node26.12.0.
+Sixteen fresh primary FoundationDB witnesses use separately durable email/E164 SMS
+delivery evidence, independent HMAC reconstruction, bounded admission/guesses,
+one-use issuance, encrypted original recovery, contact/password/revocation/restore
+fences, concurrency and actual SIGKILL before/after completion commit. See
+[D2b evidence](evidence/2026-11-19-d2b.json). Live delivery remains unverified.
+
 D2b follows D3 delivery: email/phone proof admission uses privately delivered proof,
 bounded attempts, expiry, one-use issuance and original recovery.
 

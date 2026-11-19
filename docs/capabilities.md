@@ -116,8 +116,9 @@ single canonical model requirement by themselves.
 
 Fresh local D1/D1F/D2a/D3 evidence now covers optional SQLite, primary concurrent
 FoundationDB, encrypted opaque identity sessions and durable provider effects.
-These results use the current Node sources, not the predecessor counts. Delivered
-email/phone proofs, authenticated object/service pipeline and selected Linux
+These results use the current Node sources, not the predecessor counts. D2b now
+adds delivered email/phone proofs with bounded one-use issuance. Authenticated
+object/service pipeline and selected Linux
 backup/restore/release remain subsequent gates. Live provider certification,
 replicated failure, power loss and larger capacity remain unaccepted.
 

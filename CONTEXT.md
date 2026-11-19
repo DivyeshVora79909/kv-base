@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a and D3 are accepted; D2b is next.** The implementation baseline is
+**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a, D2b and D3 are accepted; D4 is next.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -142,7 +142,7 @@ cloning or heap usage. Whole-source continuation witnesses are budgeted scans, n
 logarithmic queries. Fixture policy alone is not authentication; the D2a identity
 boundary derives actor/tenant from live opaque sessions.
 
- D3 accepted on 2026-11-19: **418 tests passed**, zero failed/skipped, Node26.12.0.
+D3 accepted on 2026-11-19: **418 tests passed**, zero failed/skipped, Node26.12.0.
 Thirty-seven independent effect witnesses cover21 primary FDB/16 optional SQLite:
 atomic intent/domain/receipt, retained encrypted revisions, exact quota admission,
 immutable provider identity, unknown reconciliation, external fencing, cancellation,
@@ -155,7 +155,16 @@ Admission may retain a charge after death before dispatch. External custody keys
 remain operator supplied; memory erasure is not claimed. Restore of an older pending
 effect needs D5 preflight fencing before workers run.
 
-Next gates retain delivered proof admission; object lifecycle/full pipeline;
+D2b accepted on 2026-11-19: **434 tests passed**, zero failed/skipped, Node26.12.0.
+Sixteen independent primary FDB witnesses verify private email/E164 SMS delivery,
+independent HMACs, bounded proof and recovery guesses, one-use issuance, encrypted
+original results, restore/contact/password fences, concurrent completion and SIGKILL
+before/after commit. See [D2b evidence](docs/evidence/2026-11-19-d2b.json). D3 was
+published at `919e63d`; its54 focused effects/identity/keyring checks passed.
+Contacts, delivery principal and providers remain operator supplied. Proof admission
+returns no code; live email/SMS acceptance is unverified.
+
+Next gates retain object lifecycle/full pipeline;
 release/bootstrap, operational capacity and selected deployment. None is supplied by
 native files or adapters in this repository. Full accounting, recurrence, temporal
 wakeups, live feeds, frontend, online migration and reactive rank windows are deferred.
