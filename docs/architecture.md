@@ -305,6 +305,15 @@ counter or distributed acceptance. After known conflicts, reject cleanly initial
 unknown commit outcomes require original receipt/status recovery, never blind replay
 with a new operation identity. Prototype atomic rollback is not crash durability.
 
+D1 selects embedded SQLite for the single-writer Linux target. A writable adapter
+reserves the writer before every callback, protects absence/ranges for its entire
+snapshot, and publishes touched KV rows plus the original receipt in one transaction.
+Contention rejects before callback execution without blocking the event loop. The
+adapter has process-kill/reopen evidence with WAL/FULL; neither synchronous settings
+nor these witnesses certify power-loss or multi-host storage. Readonly inspection
+handles provide snapshots without claiming writer exclusion. Codec identity rejects
+unknown persisted formats; source/catalog evolution requires separate acceptance.
+
 Accepted R5 uses a fixed-tenant engine facade and the same prepared catalog. Sources
 and host policy stay shared; only derived namespaces rotate. A serialized rebuild
 checks source-derived scratch state, preserves source records exactly, stages and

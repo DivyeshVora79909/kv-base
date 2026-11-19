@@ -1,35 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isDeepStrictEqual } from 'node:util';
+import { copyKvData as copy, checkKvKey as keyCheck, compareKvKeys as compare } from './kv-data.mjs';
 
 const context = new AsyncLocalStorage();
 const fail = (code, message) => Object.assign(new Error(message), { code });
-// Clone first so accessors cannot substitute shared memory after validation.
-// Walk cloned containers (including cycles); shared backing is never engine data.
-function copy(value) {
-  const detached = structuredClone(value);
-  const seen = new WeakSet();
-  function check(item) {
-    if (item === null || typeof item !== 'object' || seen.has(item)) return;
-    seen.add(item);
-    if (item instanceof SharedArrayBuffer
-      || (ArrayBuffer.isView(item) && item.buffer instanceof SharedArrayBuffer)) {
-      throw fail('INVALID_VALUE', 'Shared memory is not supported in engine values');
-    }
-    if (ArrayBuffer.isView(item) || item instanceof ArrayBuffer) return;
-    if (item instanceof Map) for (const [key, entry] of item) { check(key); check(entry); }
-    if (item instanceof Set) for (const entry of item) check(entry);
-    for (const name of Object.getOwnPropertyNames(item)) check(item[name]);
-  }
-  check(detached);
-  return detached;
-}
-function keyCheck(key) {
-  if (typeof key !== 'string' || key.length === 0 || /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(key)) {
-    throw fail('INVALID_KEY', 'Keys must be nonempty well-formed Unicode strings');
-  }
-  return key;
-}
-const compare = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b));
 
 /** Volatile serialized test adapter. Scans enumerate and sort, without an index. */
 export function createMemoryStore() {

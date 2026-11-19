@@ -33,7 +33,7 @@ function exact(input,allowed,required=allowed){
 }
 const text=(a,b)=>Buffer.compare(Buffer.from(a),Buffer.from(b));
 
-/** A serialized, volatile lifecycle boundary around the prepared engine. Sources,
+/** A serialized lifecycle boundary around the prepared engine. Sources,
  * catalog identity and host policy keys remain shared. Only derived KV namespaces
  * are generation-specific. Raw writes bypassing this boundary can break integrity.
  */
@@ -101,7 +101,10 @@ export function createEngine(configuration){
     transact:(callback,options={})=>store.transact(async tx=>{
       const current=await state(tx);if(await tx.get(activeKey)===undefined)await tx.set(activeKey,current);
       return callback(transaction(tx,current.generation),{generation:current.generation,catalog,tenant});
-    },options),
+    },{...options,...(options.verifyReplay?{verifyReplay:async(tx,receipt)=>{
+      const current=await state(tx);return options.verifyReplay(transaction(tx,current.generation),receipt);
+    }}:{})}),
+    ...(typeof store.getReceipt==='function'?{getReceipt:id=>store.getReceipt(id)}:{}),
   });
   async function sources(tx){
     const before=tx.inspect().metrics.scannedKeys;
@@ -241,6 +244,7 @@ export function createEngine(configuration){
     });
   }
   return Object.freeze({catalog,tenant,store:activeStore,read:activeStore.read,transact:activeStore.transact,
+    ...(activeStore.getReceipt?{getReceipt:activeStore.getReceipt}:{}),
     mutate:(changes,options)=>mutate(activeStore,catalog,tenant,changes,options),
     mutateAuthorized:async(context,changes,options)=>mutateAuthorized(activeStore,catalog,fixedContext(context),changes,options),
     readAuthorized:async(context,query,options)=>readAuthorized(activeStore,catalog,fixedContext(context),query,options),

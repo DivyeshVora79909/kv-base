@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**R1–R5 are accepted and published to main.** The implementation baseline is
+**R1–R5 and D1 are accepted; D2a is next.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -88,6 +88,14 @@ These are small-fixture measurements, not a capacity acceptance.
 
 ## Next boundary and remaining limits
 
+D1 accepted on 2026-11-19: **287 tests passed**, zero failed/skipped, Node 26.12.0.
+Fifteen independent SQLite/engine witnesses cover exact persistence, rollback,
+absence/empty range protection, multiple handles/processes, SIGKILL before/after
+commit, original receipts, structural paths, reactive settlement and generations.
+See [D1 evidence](docs/evidence/2026-11-19-d1.json). Selected deployment is self-hosted
+Linux with one writable instance. SQLite WAL/FULL uses immediate serialization and
+definite busy rejection; power-loss and multi-host guarantees are not accepted.
+
 The requested R1–R5 sequence is complete. `createEngine` owns fixed-tenant active
 snapshot reads/writes, opaque raw/authorized continuations and rebuild/check/retire.
 One source authority and prepared catalog remain shared; only derived namespaces
@@ -98,7 +106,8 @@ provider/I/O. Source, authority setup and physical scan costs are explicitly met
 Importable `inspectEngine`, `populateAdaptive` and `runSeededWorkload` report
 actual transaction outcomes, including nonzero staged byte work on validator rollback.
 
-Storage remains serialized and volatile. Cursor handles are process-local, consumed
+The memory adapter remains volatile; SQLite now supplies durable serialized storage.
+Cursor handles are process-local, consumed
 on successful resume and invalid after restart/another engine/generation; unused
 handles can be released and their inventory is bounded. Rebuild currently uses the
 same catalog and rejects changed authoritative/generated source inventory. Catalog
@@ -108,8 +117,7 @@ and can bypass active-generation maintenance. Logical byte caps do not bound eag
 cloning or heap usage. Whole-source continuation witnesses are budgeted scans, not
 logarithmic queries. Fixture policy is not authentication.
 
-Later gates retain persistent KV transactions/concurrency/crash/original-receipt
-recovery; identity/session and restore fencing; credentials/key custody; durable
+Next gates retain identity/session and restore fencing; credentials/key custody; durable
 effect intent, provider fencing and unknown outcomes; object lifecycle/full pipeline;
 release/bootstrap, operational capacity and selected deployment. None is supplied by
 native files or adapters in this repository. Full accounting, recurrence, temporal

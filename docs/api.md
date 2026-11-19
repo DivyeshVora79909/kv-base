@@ -380,8 +380,31 @@ guarded lookup but cause zero physical occurrence writes; a complete no-op on an
 initialized valid store causes zero physical writes. Variable-width BigInt cost,
 multiple memberships, cascades and adapter scans add work. Values are detached; undefined is the absence sentinel; shared memory is
 rejected. Reentry into the same store and transaction use after closure reject.
-No crash durability, distributed OCC, automatic retry or unknown-ACK acceptance is
-claimed. Direct adapter calls are trusted internal operations, not authorized RPCs.
+This memory adapter supplies no crash durability. Direct adapter calls are trusted
+internal operations, not authorized RPCs.
+
+`openSqliteStore(filename, {readOnly: false})` supplies persistent transactions
+through Node's built-in SQLite binding. Writable handles use WAL, FULL synchronization,
+zero busy timeout and `BEGIN IMMEDIATE` before both read and write callbacks. Callbacks
+on one handle queue; another handle/process receives `STORAGE_CONFLICT` before entry
+when the writer reservation is held. Reads, absent points and empty ranges stay
+protected across awaits. UTF-8 BLOB keys support embedded NUL and exact binary bounds;
+scans use SQLite bounds and merge the touched overlay. Values use a versioned V8
+codec, preserving BigInts, cycles and bytes. Unknown formats reject; cross-runtime
+format migration is not provided. `readOnly: true` supplies coherent inspection
+snapshots with `serialized: false` and cannot back the engine facade.
+
+`store.transact(callback, {receipt: {id, digest}, verifyReplay, beforeCommit,
+afterCommit})` commits the original result with the KV changes. An existing ID with
+another digest rejects `RECEIPT_MISMATCH`; a match skips the callback and optionally
+runs `verifyReplay(tx, receipt)` with a readonly snapshot before disclosure.
+`afterCommit` failure reports `COMMIT_UNKNOWN` and `receiptId`; recover via
+`getReceipt(id)` or retry the original ID/digest, never invent another operation.
+Receipts are privileged and may contain secrets unless the caller encrypts them.
+The engine forwards receipt options and maps replay checking to the active generation;
+`engine.getReceipt(id)` is privileged original-receipt access. `store.close()` drains
+queued operations. Process-kill witnesses prove local SQLite recovery, not power-loss,
+distributed concurrency, storage-device guarantees or automatic retries.
 
 The checker covers the requested tenant and current catalog generation, not unknown
 inactive generations or lifecycle activation. Raw mutation/read functions are trusted

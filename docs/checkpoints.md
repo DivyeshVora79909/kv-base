@@ -1,6 +1,7 @@
 # Checkpoints and acceptance gates
 
-**R1–R5 are accepted locally.** Subsequent durable/service gates remain separate. This roadmap starts from `8f337cd`, which includes
+**D2a is the first unmet gate. R1–R5 and D1 are accepted.** The next sequence
+targets a self-hosted Linux service with one writable instance. This roadmap starts from `8f337cd`, which includes
 fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
 single-order-field and dedicated-access-view plan. Accept a gate only after its
 witnesses run against the implementation. The [API guide](api.md) records executable
@@ -95,7 +96,7 @@ Plan ordinary compatible partitions and merge cached stream heads by the R2 orde
 Direct, indexed and reverse-reference results use the same record policy. The
 traversal path grants no permission and requires no extra read grant on an
 intermediate record. Keep internal integrity checks over complete business state.
-Explicit publication of selected full-anchor summaries is still missing.
+Selected full-anchor summaries use explicit publication declarations.
 
 **Exit.** One invoice has a visible +100 entry and a hidden −80 entry. A reader
 authorized for the declared full balance sees 20 and only their permitted rows.
@@ -131,6 +132,90 @@ Report runtime, dataset, budgets, visits, reads/writes, bytes and latency. Accou
 memory scans and stream setup separately from AVL path length.
 
 ## Verification and subsequent gates
+
+## D1 — Durable adapter and original receipts
+
+**Accepted 2026-11-19.** 287 tests passed on Node 26.12.0, including 15 new
+adapter/engine witnesses. Real child-process writer conflicts and SIGKILL before
+and after SQL commit protect source/receipt atomicity. Reopened structural paths,
+reactive recomputation, generation activation rollback and active-generation replay
+checking passed. See [D1 evidence](evidence/2026-11-19-d1.json).
+
+Use the same engine over an embedded persistent adapter with explicit serialized
+transactions, protected present/absent/range reads, exact detached values and
+atomic publication. Select Node's built-in SQLite binding only after fresh adapter
+conformance; WAL and FULL synchronization are configuration, not crash evidence.
+Busy/conflicting writers reject definitively before callback execution. Preserve
+the original operation ID, request digest and result in the same commit as data;
+unknown acknowledgement recovers that receipt without inventing a new operation.
+
+**Exit.** Reopen and independently check structural/path/reactive inventories and
+generation state. Independent adapter witnesses cover rollback, no-op, Unicode/NUL
+keys, exact values, absent/empty guards, multiple handles/processes, writer conflict,
+process death before publication and after committed-but-unacknowledged receipt.
+Mismatch/replay protection returns the original result once. No distributed or
+optimistic-concurrency claim follows from serialized SQLite locking.
+
+## D2 — Credential custody, identity and session fencing
+
+D2a follows D1: real credentials and opaque sessions use external encryption/HMAC
+keys, one existing authority graph, bounded authentication attempts, expiry,
+revocation and an external restore incarnation. Actor/tenant comes from validated
+sessions; initial and final authority checks remain in the transaction. Original
+session issuance recovery must not store plaintext bearer credentials in receipts.
+D2b follows D3 delivery: email/phone proof admission uses privately delivered proof,
+bounded attempts, expiry, one-use issuance and original recovery.
+
+**Exit.** Credential rotation, lost acknowledgement, invalid/expired/revoked tokens,
+owner transfers, policy revocation and restore reject or recover correctly. Restored
+credentials can issue new sessions while pre-restore sessions/proofs stay invalid.
+No public route accepts an actor, authority provider, encryption key or raw KV access.
+
+## D3 — Durable effects and provider protocols
+
+Commit effect intent with business state and receipt. Claim/start evidence, pinned
+credential revision and admission charge precede external execution. Calls occur
+outside engine transactions. Preserve fenced leases, immutable provider operation
+identity, known/unknown facts, idempotent application and original-key reconciliation.
+Two concrete fake protocols exercise the worker; live provider credentials remain
+operator supplied. Unsupported work rejects before acceptance or is isolated
+without blocking unrelated jobs.
+
+**Exit.** Kill/reopen around claim, physical start, provider success, fact storage
+and application. Stale workers cannot apply; unknown work never blindly resends.
+Cancellation, retries, admission and credential changes preserve original evidence.
+Fresh fake transports prove protocol semantics, not live-provider certification.
+
+## D4 — Objects, authenticated service and full pipeline
+
+Use ordinary Node imports and HTTP routes over the same prepared catalog. Private
+upload grants bind owner, session/incarnation, expiry, size and digest; filenames
+are server selected. Stream/hash/stage, durable finalize, activation, tombstone and
+cleanup reconcile file/DB crash boundaries. Downloads require current record Read.
+Expose only authorized mutations/queries/relations/publications and selected service
+operations. Complete the delivered-proof, effect and object pipeline locally.
+
+**Exit.** Adversarial HTTP and subprocess witnesses cover request limits, tenant and
+owner boundaries, missing grants, transfers/revocation, stale upload/finalize tokens,
+oversized/mismatched bytes, crash recovery and idempotent cleanup/application.
+No secret, hidden source ID, undeclared summary count or raw diagnostic reaches clients.
+
+## D5 — Recovery, release and selected operations
+
+Build a reproducible self-hosted Linux release with external custody keys, explicit
+bootstrap, health/shutdown, database/object backup and restore incarnation rotation.
+Verify install/start/stop/reopen, complete restored source/file inventories and
+session invalidation. Report seeded workload latency, visits, logical/physical bytes,
+memory and adapter scan costs separately. Publish deployment instructions and actual
+local release evidence; remote hosting requires a concrete operator target.
+
+**Exit.** Restore a verified backup and independently check the full pipeline; old
+sessions/proofs/cursors reject. Faulted/incomplete backups never replace the active
+installation. Release smoke and measured capacity include dataset/runtime/limits.
+Online catalog migration, multi-host writes, recurrence/frontend/full domain suites
+retain separate explicit acceptance and are not prerequisites for this release.
+
+### Checkpoint method
 
 For each implementation checkpoint, run the relevant independent witnesses and
 the Node test suite. Record the revision or tested source digest, runtime,
