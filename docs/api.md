@@ -412,7 +412,8 @@ Models are private by default. Optional declaration:
 access: { orders: { effective: { view: 'ownerEffective', slot: 'main', ownerPartition: 0 } } }
 ```
 
-Each order selects a dedicated model/slot view. The owner position must be domain
+Legacy named orders select a dedicated model/slot view; structural owner queries
+derive compatible memberships directly as described in R4 below. The owner position must be domain
 `id` and project the trusted `owner` header exactly once. Other partition positions
 may use arbitrary supported typed roles; do not assume a fixed two-role layout.
 Unknown options, ambiguous views/slots, body-field owner substitutes and malformed
@@ -477,7 +478,8 @@ await engine.checkStore(store, catalog, 'tenant');
 ```
 
 `readAuthorized(store, catalog, context, query, options)` accepts exactly
-`{ model, order, partition, range?, limit }`. `order` names the model's prepared
+`{ model, order, partition, range?, limit }` for legacy named orders, or the
+structural `index` alternative described in R4 below. `order` names the model's prepared
 access order, and `partition` supplies the **non-owner** roles in their declared
 order. The request cannot supply an owner partition. `range` uses the scalar or
 complete typed cuts of `treeAggregate`; explicit null/undefined ranges reject.
@@ -495,8 +497,8 @@ empty page after request/authority validation, without discovering streams.
 
 `readIncomingAuthorized(store, catalog, context, query, options)` accepts exactly
 `{ targetId, model, slot, limit }`, where `slot` names a declared reference of the
-requested source model. The target must itself pass Read; absent and inaccessible
-targets both reject with `FORBIDDEN`. Incoming entries are validated against their
+requested source model. The target's identity and type are validated; it requires
+no Read grant. Absent targets reject with `FORBIDDEN`. Incoming entries are validated against their
 key, target and hydrated source's declared reference slot/array position before the
 same disclosure check. Other models/slots and hidden owners are filtered. Return
 distinct source records sorted by UTF-8 ID, clipped to `limit` **after** bounded
@@ -559,3 +561,74 @@ are not returned. Raw `mutate`, adapter calls and low-level tree APIs remain tru
 Acceptance evidence is [JS-P4b.2](evidence/2026-11-14-js-p4b2.json). Explicit published
 anchor-summary policy, cross-request continuation fencing, persistent adapters and
 production identity/session enforcement remain outside this checkpoint.
+
+## Structural owner queries and explicit anchor publication (R4)
+
+Models still require explicit `access: { orders: {} }` to opt in to ordinary
+fixture actions. Structural reads do not require an access-order alias or a
+separate view. The requested model's membership must bind exactly one `id`
+partition role to its own trusted `{ header: 'owner' }`. Bindings to a body field
+or a related record's owner do not qualify. All qualifying membership slots must
+place that header in the same role position. Other typed partition values remain
+ordinary query inputs.
+
+```js
+const ownerIndex = ['Invoice', ['anchor', 'owner'], ['day', 'sequence']];
+const page = await engine.readAuthorized(store, catalog, context, {
+  model: 'Entry', index: ownerIndex, partition: ['invoice'], limit: 10,
+  range: { lower: { value: ['1', '2'], inclusive: true } },
+}, { getAuthority });
+```
+
+The `partition` query array excludes the trusted owner role. The reader substitutes
+each accessible owner and merges cached stream heads by the complete typed order
+and stable source/slot tie-breakers. Different models and repeated memberships can
+share an ordinary structural index. Every encountered occurrence is checked against
+its source facts, then filtered to the requested model and qualifying slots.
+Repeated qualifying slots remain repeated rows. The source owner must match the
+stream owner. Returned bodies pass the same record policy used by direct and
+reverse reads. Setup, candidates, refills, nodes, batches and logical bytes retain
+the finite reader budgets; diagnostics stay in the privileged `onMetrics` callback.
+
+`readPointAuthorized(store, catalog, context, { id }, options)` returns
+`{ records: [record] }` for a readable point, or `{ records: [] }` for an absent or
+unreadable point. Reverse traversal validates the target's identity and type but
+requires no Read grant on it. The source's own policy controls every returned row.
+An absent reverse target still rejects with `FORBIDDEN`; a dangling or mismatched
+source/reference rejects with `CORRUPT_STATE`. Neither traversal nor an intermediate
+record grants access to a source.
+
+A model-owned declaration can explicitly publish a selected full-anchor summary:
+
+```js
+{
+  version: '1', partitionFields: ['anchor'], orderFields: ['day', 'sequence'],
+  roles: { anchor: 'id', day: 'integer', sequence: 'integer' },
+  inputs: { amount: 'integer' },
+  aggregates: { total: { monoid: 'sum', input: 'amount' } },
+  publication: { anchorPartition: 0, aggregates: ['total'] },
+}
+
+await engine.readAnchorSummaryAuthorized(store, catalog, context, {
+  index: ['Invoice', ['anchor'], ['day', 'sequence']], partition: ['invoice'],
+}, { getAuthority }); // { summary: { total: 20n } }
+```
+
+`anchorPartition` names an `id` partition position. It must resolve to a record of
+the declaring model that passes Read in the same tenant and snapshot. The optional
+query `anchorId` must equal that partition value. The query uses the entire
+partition and has no range or filtered-owner inputs. Only explicitly selected
+aggregate names are returned; source identities, member bodies, ranks, counts and
+undeclared summaries are absent. A visible `+100` contribution and a hidden `-80`
+contribution therefore yield a published full balance of `20`, while row reads
+return only permitted occurrences. Exact summary values retain their ordinary
+Node `BigInt` representation. An empty authorized anchor fold uses the declared
+monoid identity and protects its absent root.
+
+Trusted hosts can compose `readAuthorizedInTransaction(tx, catalog, context,
+query, options)` and `readAnchorSummaryAuthorizedInTransaction(tx, catalog,
+context, query, options)` within one `store.read` callback. The host owns the
+read-only transaction lifetime; each operation still loads current fixture
+authority through that transaction and applies all disclosure checks. This permits
+public rows, a declared full summary and independent source-derived inspection to
+be checked in one snapshot.

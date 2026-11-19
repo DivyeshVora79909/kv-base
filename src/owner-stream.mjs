@@ -1,3 +1,4 @@
+import { normalizeScope } from './index-declaration.mjs';
 import { decodeDomain, fail } from './values.mjs';
 import { rootKey, nodeKey, occurrenceToken } from './keys.mjs';
 import { compareKey, belowRange, aboveRange } from './range.mjs';
@@ -10,6 +11,7 @@ const corrupt = () => fail('CORRUPT_STATE', 'Invalid owner stream tree');
  * Pruned subtrees remain the independent full checker's responsibility.
  */
 export async function createOwnerStream(catalog, scope, range, fetch) {
+  scope = normalizeScope(catalog, scope);
   const headerKey = rootKey(catalog, scope);
   const fixedScope = structuredClone(scope), cuts = structuredClone(range);
   const domain = catalog.views[scope.view].contract.order;

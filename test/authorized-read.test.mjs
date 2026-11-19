@@ -171,12 +171,12 @@ test('shared business summaries retain hidden contributions without disclosing h
   await checkStore(f.store, f.catalog, 't');
 });
 
-test('private models, missing grants, hidden and private relation anchors fail closed', async () => {
+test('private source models and missing grants fail closed while relation anchors confer no grant', async () => {
   const f = await fixture();
   await assert.rejects(readAuthorized(f.store, f.catalog, { ...context, actor: 'without-grants' }, query, f.options), { code: 'FORBIDDEN' });
   await assert.rejects(read(f, { ...query, model: 'Secret' }), { code: 'FORBIDDEN' });
-  await assert.rejects(incoming(f, { targetId: 'hidden-anchor' }), { code: 'FORBIDDEN' });
-  await assert.rejects(incoming(f, { targetId: 'secret-anchor' }), { code: 'FORBIDDEN' });
+  assert.deepEqual(await incoming(f, { targetId: 'hidden-anchor' }), { records: [] });
+  assert.deepEqual(await incoming(f, { targetId: 'secret-anchor' }), { records: [] });
   await assert.rejects(incoming(f, { targetId: 'missing-anchor' }), { code: 'FORBIDDEN' });
   assert.deepEqual(Object.keys(await read(f)), ['records']);
   assert.deepEqual(Object.keys(await incoming(f)), ['records']);

@@ -32,12 +32,23 @@ export function lowerIndexes(definition) {
     if (!Array.isArray(model.indexes)) invalid('Model indexes must be an array');
     for (const spec of model.indexes) {
       if (!spec || typeof spec !== 'object' || Array.isArray(spec)
-        || Object.keys(spec).some(key => !['version','partitionFields','orderFields','roles','inputs','aggregates','validators'].includes(key))) invalid('Invalid index declaration');
+        || Object.keys(spec).some(key => !['version','partitionFields','orderFields','roles','inputs','aggregates','validators','publication'].includes(key))) invalid('Invalid index declaration');
       const signature = [modelId, spec.partitionFields, spec.orderFields], id = indexId(signature);
       const fields = [...spec.partitionFields, ...spec.orderFields];
       if (new Set(fields).size !== fields.length || !spec.orderFields.length) invalid('Index roles must be distinct with at least one order role');
       if (!spec.roles || Array.isArray(spec.roles) || typeof spec.roles !== 'object'
         || Object.keys(spec.roles).length !== fields.length || fields.some(field => !domains.has(spec.roles[field]))) invalid('Index role domains must match its signature');
+      if (spec.publication !== undefined) {
+        const publication = spec.publication;
+        if (!publication || typeof publication !== 'object' || Array.isArray(publication)
+          || Object.keys(publication).length !== 2 || Object.keys(publication).some(key => !['anchorPartition', 'aggregates'].includes(key))
+          || !Number.isSafeInteger(publication.anchorPartition) || publication.anchorPartition < 0
+          || publication.anchorPartition >= spec.partitionFields.length
+          || spec.roles[spec.partitionFields[publication.anchorPartition]] !== 'id'
+          || !Array.isArray(publication.aggregates) || !publication.aggregates.length
+          || new Set(publication.aggregates).size !== publication.aggregates.length
+          || publication.aggregates.some(name => typeof name !== 'string' || !Object.hasOwn(spec.aggregates ?? {}, name))) invalid('Invalid anchor publication');
+      }
       if (indexes[id]) invalid('Duplicate or conflicting structural index definition');
       if (Object.hasOwn(declaration.views, id) || Object.hasOwn(declaration.contracts, id)) invalid('Conflicting structural index definition');
       const order = spec.orderFields.map(field => spec.roles[field]);

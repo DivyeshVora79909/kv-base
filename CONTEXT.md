@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**Start at R4, owner-constrained structural operations and publication. R1–R3 are accepted.** The implementation baseline is
+**Start at R5, continuations, generation lifecycle and developer tools. R1–R4 are accepted.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -70,14 +70,23 @@ managed potential dependencies while actual outputs are absent, independent full
 recomputation, and exact rollback of sources/edges/trees/routes/outputs. See
 [R3 evidence](docs/evidence/2026-11-19-r3.json) and `examples/reference-path.mjs`.
 
-Start at R4. Structural tuples (representation version2) and typed finite scalar
-paths are executable. Paths target authored topology; managed contributors can use
-those paths. Models remain private by default. R4 must derive owner partition plans
-from the contributor's local trusted owner, unify point/indexed/reverse disclosure,
-and publish explicitly selected full-anchor aggregates. R5 lifecycle, cross-request
-continuations and developer tools remain unmet. Path discovery meters point reads,
-reverse visits and physical scans separately. Full checking detects omitted reverse
-edges; no per-mutation claim of complete corruption detection is made.
+R4 accepted on 2026-11-19: **245 tests passed**, zero failed/skipped, on Node
+26.12.0. Fourteen independent authority witnesses check structural owner plans,
+shared/tied/repeated streams, point/indexed/reverse record policy, publication20
+from visible+100 and hidden−80, both-owner transfers, revocation, tenant/budget
+limits, request detachment and joint ancestor/owner changes in one snapshot. See
+[R4 evidence](docs/evidence/2026-11-19-r4.json). R3 was published at `857890a`.
+
+Start at R5. Authorized structural reads derive compatible partitions from the
+contributor's local trusted owner header. Publication is an explicit selected-
+aggregate contract tied to a readable declaring-model anchor. Related/intermediate
+records grant no permission and require no extra Read. Trusted hosts can compose
+`readAuthorizedInTransaction` and `readAnchorSummaryAuthorizedInTransaction` in
+one read-only snapshot. Existing both-owner/final-authority mutation checks remain.
+R5 must fence cross-request positions by query/catalog/generation/authority/relevant
+source state, build/check/activate candidate generations atomically, retire after
+reads finish, and expose ordinary importable workload/inspection/population tools.
+Fixture policy is not authentication. All storage remains volatile/serialized.
 
 Later gates retain persistent KV transactions/concurrency/crash/original-receipt
 recovery; identity/session and restore fencing; credentials/key custody; durable

@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**R4 is the first unmet gate. R1–R3 are accepted.** This roadmap starts from `8f337cd`, which includes
+**R5 is the first unmet gate. R1–R4 are accepted.** This roadmap starts from `8f337cd`, which includes
 fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
 single-order-field and dedicated-access-view plan. Accept a gate only after its
 witnesses run against the implementation. The [API guide](api.md) records executable
@@ -85,7 +85,9 @@ sources, reverse edges, occurrences, aggregates and outputs together.
 
 ## R4 — Owner-constrained queries and mutations
 
-**Needs adaptation.** Keep the existing tenant, action and owner-DAG checks,
+**Accepted 2026-11-19.** Fresh R4 verification: 245 tests passed on Node 26.12.0, including fourteen independent structural-authority witnesses and the joint R3/R4 snapshot. See [R4 evidence](evidence/2026-11-19-r4.json).
+
+Keep the existing tenant, action and owner-DAG checks,
 hydration, same-snapshot merge and both-owner/final-authority mutation checks. Bind
 accessible owners to a structural partition role backed by the **contributing
 record's trusted owner header**. A related record's owner has a different meaning.
