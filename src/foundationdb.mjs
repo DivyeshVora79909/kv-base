@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { serialize, deserialize } from 'node:v8';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isDeepStrictEqual } from 'node:util';
@@ -67,6 +68,7 @@ export async function openFoundationDbStore(options = {}) {
     }
   } catch (cause) { db.close(); throw cause; }
   let closing = false, closed = false, closePromise; const active = new Set();
+  const location=Object.freeze({adapter:'foundationdb',clusterFile:resolve(clusterFile),prefix});
   const capabilities = Object.freeze({ adapter: 'foundationdb', volatile: false, durable: true, serialized: false, serializable: true, readOnly, format, apiVersion, keyBytes: 10_000, valueBytes: 100_000, transactionBytes, timeoutMs, scans: 'native ordered range batches plus touched overlay merge', guards: 'native non-snapshot point/absence reads and explicit full requested read conflict ranges', callbackRetries: 0 });
   const key = (name, namespace = dataPrefix) => { const value = Buffer.concat([namespace, Buffer.from(checkKvKey(name))]); if (value.length > 10_000) throw error('STORAGE_LIMIT', 'Physical key exceeds 10000 bytes'); return value; };
   const encode = value => { const bytes = serialize(copy(value)); if (bytes.length > 100_000) throw error('STORAGE_LIMIT', 'Encoded value exceeds 100000 bytes'); return bytes; };
@@ -142,9 +144,9 @@ export async function openFoundationDbStore(options = {}) {
         open = false;
         for (const change of changes) { const physical = key(change.key); if (change.type === 'set') { const bytes = encode(change.value); tn.set(physical, bytes); metrics.nativeWriteBytes += physical.length + bytes.length; } else { tn.clear(physical); metrics.nativeWriteBytes += physical.length; } metrics.nativeWrites++; }
         if (receipt) { const physical = key(receipt.id, receiptPrefix); tn.set(physical, receiptBytes); metrics.nativeWriteBytes += physical.length + receiptBytes.length; metrics.nativeWrites++; }
-        if (fixed.beforeCommit) await fixed.beforeCommit({ changes: copy(changes) });
+        if (fixed.beforeCommit) await fixed.beforeCommit({ changes: copy(changes), metrics: copy(metrics) });
         attempted = true; await tn.rawCommit(); committed = true;
-        if (fixed.afterCommit) await fixed.afterCommit({ receipt: receipt ? copy(receipt) : undefined });
+        if (fixed.afterCommit) await fixed.afterCommit({ receipt: receipt ? copy(receipt) : undefined, metrics: copy(metrics) });
         return result;
       } catch (cause) {
         if (committed) { const failure = error('COMMIT_UNKNOWN', 'Committed operation lost acknowledgement; recover original receipt', cause); if (fixed.receipt) failure.receiptId = fixed.receipt.id; throw failure; }
@@ -153,9 +155,69 @@ export async function openFoundationDbStore(options = {}) {
     });
     active.add(task); task.then(() => active.delete(task), () => active.delete(task)); return task;
   }
+  function checkpointTask(callback) {
+    if (context.getStore()?.has(identity)) return Promise.reject(error('NESTED_TRANSACTION', 'Same-store nested checkpoint unsupported'));
+    if (closing || closed) return Promise.reject(error('STORAGE_CLOSED', 'Store is closing or closed'));
+    const parents = context.getStore() ?? new Set(), task = context.run(new Set([...parents, identity]), callback);
+    active.add(task); task.then(() => active.delete(task), () => active.delete(task)); return task;
+  }
+  function checkpointLimits(options) {
+    const maxRows = options.maxRows ?? 100000, maxBytes = options.maxBytes ?? 8 * 1024 * 1024;
+    if (!Number.isSafeInteger(maxRows) || maxRows < 1 || maxRows >= 2147483647 || !Number.isSafeInteger(maxBytes) || maxBytes < 1) throw error('INVALID_OPTIONS', 'Finite positive checkpoint limits required');
+    return { maxRows, maxBytes };
+  }
+  function validateCheckpoint(snapshot, limits) {
+    fields(snapshot, ['protocol', 'format', 'rows']);
+    if (snapshot.protocol !== 'kv-base-fdb-checkpoint-1' || snapshot.format !== format || !Array.isArray(snapshot.rows) || snapshot.rows.length > limits.maxRows) throw error('BACKUP_INVALID', 'Unsupported or oversized checkpoint');
+    let previous, bytes = 0, formats = 0;
+    const rows = snapshot.rows.map(row => {
+      if (!Array.isArray(row) || row.length !== 2 || !Buffer.isBuffer(row[0]) || !Buffer.isBuffer(row[1])) throw error('BACKUP_INVALID', 'Exact binary checkpoint rows required');
+      const [suffix, value] = row.map(Buffer.from);
+      if (!suffix.length || suffix.length + root.length > 10000 || value.length > 100000 || previous && Buffer.compare(previous, suffix) >= 0) throw error('BACKUP_INVALID', 'Invalid checkpoint key/value order');
+      if (suffix[0] === 2 && suffix.equals(Buffer.concat([Buffer.from([2]), Buffer.from('format')]))) { if (!value.equals(Buffer.from(format))) throw error('BACKUP_INVALID', 'Unsupported checkpoint format'); formats++; }
+      else if ([0, 1].includes(suffix[0])) {
+        const nameBytes = suffix.subarray(1), name = checkKvKey(nameBytes.toString('utf8'));
+        if (!Buffer.from(name).equals(nameBytes)) throw error('BACKUP_INVALID', 'Invalid checkpoint key bytes');
+        if (suffix[0] === 0) decode(value); else storedReceipt(value, name);
+      } else throw error('BACKUP_INVALID', 'Unknown checkpoint namespace');
+      previous = suffix; bytes += suffix.length + value.length;
+      if (bytes > limits.maxBytes) throw error('BACKUP_LIMIT', 'Checkpoint byte limit exceeded');
+      return [suffix, value];
+    });
+    if (formats !== 1) throw error('BACKUP_INVALID', 'Checkpoint format row missing');
+    return { rows, bytes };
+  }
+  // Privileged paused-writer operations. Physical suffixes preserve exact values
+  // and original receipt bytes without a second engine/schema serialization.
+  function captureCheckpoint(options = {}) { return checkpointTask(async () => {
+    fields(options, ['maxRows', 'maxBytes']); const limits = checkpointLimits(options), tn = db.rawCreateTransaction(nativeOptions);
+    try {
+      tn.addReadConflictRange(root, prefixEnd(root));
+      const physical = await tn.getRangeAll(root, prefixEnd(root), { limit: limits.maxRows + 1 });
+      const snapshot = { protocol: 'kv-base-fdb-checkpoint-1', format, rows: physical.map(([key, value]) => [Buffer.from(key).subarray(root.length), Buffer.from(value)]) };
+      validateCheckpoint(snapshot, limits); await tn.rawCommit(); return snapshot;
+    } catch (cause) { throw classify(cause, true); } finally { tn.rawCancel(); }
+  }); }
+  function restoreCheckpoint(snapshot, options = {}) { return checkpointTask(async () => {
+    if (readOnly) throw error('READ_ONLY', 'Cannot restore through a read-only handle');
+    fields(options, ['maxRows', 'maxBytes', 'beforeCommit', 'afterCommit']);
+    for (const name of ['beforeCommit', 'afterCommit']) if (options[name] !== undefined && typeof options[name] !== 'function') throw error('INVALID_OPTIONS', 'Expected checkpoint hook');
+    const limits = checkpointLimits(options), checked = validateCheckpoint(snapshot, limits), tn = db.rawCreateTransaction(nativeOptions); let attempted = false, committed = false;
+    try {
+      tn.addReadConflictRange(root, prefixEnd(root));
+      const existing = await tn.getRangeAll(root, prefixEnd(root), { limit: 2 });
+      if (existing.length !== 1 || !Buffer.from(existing[0][0]).equals(formatKey) || !Buffer.from(existing[0][1]).equals(Buffer.from(format))) throw error('RESTORE_TARGET_NOT_EMPTY', 'Restore requires an empty initialized candidate namespace');
+      for (const [suffix, value] of checked.rows) tn.set(Buffer.concat([root, suffix]), value);
+      if (options.beforeCommit) await options.beforeCommit({ rows: checked.rows.length, bytes: checked.bytes });
+      attempted = true; await tn.rawCommit(); committed = true;
+      if (options.afterCommit) await options.afterCommit({ rows: checked.rows.length, bytes: checked.bytes });
+      return { restored: true, rows: checked.rows.length, bytes: checked.bytes };
+    } catch (cause) { if (committed) throw error('COMMIT_UNKNOWN', 'Restored candidate lost acknowledgement; compare its original checkpoint', cause); throw classify(cause, attempted); }
+    finally { tn.rawCancel(); }
+  }); }
   async function close() {
     if (context.getStore()?.has(identity)) throw error('NESTED_TRANSACTION', 'Cannot close inside its transaction');
     closePromise ??= (async () => { closing = true; await Promise.allSettled([...active]); db.close(); closed = true; })(); return closePromise;
   }
-  return Object.freeze({ capabilities, transact: (callback, options = {}) => run(callback, options, false), read: callback => run(callback, {}, true), getReceipt: id => run(() => {}, {}, true, checkKvKey(id)), close });
+  return Object.freeze({ capabilities, location, transact: (callback, options = {}) => run(callback, options, false), read: callback => run(callback, {}, true), getReceipt: id => run(() => {}, {}, true, checkKvKey(id)), captureCheckpoint, restoreCheckpoint, close });
 }

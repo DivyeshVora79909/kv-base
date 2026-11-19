@@ -382,8 +382,8 @@ durable permission to start, not a measurement of HTTP dispatch. Cancellation
 retains admitted evidence. Provider facts and their atomic domain application are
 separate commits, allowing application recovery without repeating external work.
 Fake providers own an independent durable ledger; live capability claims require
-their own evidence. Restoring an older pending intent requires an external recovery
-fence, addressed by D5 before restored workers are enabled.
+their own evidence. D5 restores older pending intent only with external recovery
+fencing before dispatch; unsupported restored providers isolate their work.
 
 D2b stores private delivered-proof protocol metadata beside D2a session metadata,
 while its encrypted delivery intent is an ordinary D3 Effect. Operator contacts and
@@ -412,6 +412,32 @@ context, transports, worker controls, raw transactions and inspection stay impor
 Private error details and reader counters are never response fields. The service
 uses concurrent FoundationDB transactions; it adds no global write queue.
 
+D5 composes those same engine, identity, proof, effect, object and service modules
+in one Linux runtime. Admission is registered before async work, nested tasks drain,
+and inherited contexts expire when their admission finishes. Shutdown and offline
+maintenance stop ingress and wait for uploads, provider calls and application before
+closing storage. Raw retained privileged handles remain the operator's responsibility.
+Bootstrap is an original-request-bound private protocol, never a public route.
+
+Offline recovery checks and signs the complete native namespace, including exact
+original receipts, plus ready/staged file hashes and modes. It imports only into an
+empty separate namespace and file root. Candidate quiescence covers final independent
+source/file checking and fsynced external descriptor publication. The selected
+descriptor and custody keys remain outside backups. Restored sessions, proofs,
+upload grants, effect leases and cursors bind a fresh external incarnation.
+Restore dispatch requires original-key status and incarnation/epoch takeover on the
+independent provider ledger; a high obsolete numeric epoch cannot revive old work.
+Process-local activation serialization is not coordination across operator processes.
+
+The release inventory records source, dependency lock and catalog identities.
+Generated `RELEASE-LOCK.json` preserves the sole source lock across npm archive
+exclusions; extracted installations restore that lock before ordinary `npm ci`.
+Independent checks traverse actual installed dependency resolution and start/stop/
+reopen the packaged runtime against FoundationDB. The signed backup and release
+inventories are bounded scans. Native payload bytes, logical staged bytes, source
+checking, CPU/RSS and latency are distinct measurements; none proves large-system
+capacity, replication, power-loss safety or arbitrary native-build reproducibility.
+
 Public surface should represent real capabilities: prepare catalog, transact/read,
 source-derived checking and the R5 lifecycle, population and workload tools.
 Use the same prepared structural catalog for those tools and future RPC handlers. Internal balancing/secret/worker helpers are not remotely callable.
@@ -435,9 +461,10 @@ are not selected. No promise JIT matches Rust CPU/memory behavior. Model/system
 metadata should remain opaque typed data so measured hotspots can later move behind
 the same semantic boundary; speculative FFI frameworks are unnecessary now.
 
-After prototype gates: persistent crash/concurrency/receipt acceptance; full
-email/phone identity and session fencing; credentials/key custody and durable provider
-adapters; object lifecycle/full fake pipeline; retention/recovery/capacity/deployment.
+R1–R5 and D1–D5 establish the engine, local durable conformance, identity/custody,
+fake-provider pipeline, object lifecycle and selected offline Linux operations.
+Live delivery/retention, remote deployment and larger operational capacity need
+fresh evidence against their concrete targets.
 Maintain distinct provider implementations (e.g. Resend/Brevo), without requiring a
 versioned operation naming convention. Optional live feeds, recurrence, frontend,
 domain accounting/CRM/HRM models and TiKV remain separate. See the capability map for

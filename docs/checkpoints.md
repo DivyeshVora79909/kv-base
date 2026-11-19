@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**D5 is the first unmet gate. R1–R5, optional SQLite D1, D1F, D2a, D2b, D3 and D4 are accepted.**
+**R1–R5, optional SQLite D1, D1F, D2a, D2b, D3, D4 and D5 are accepted.**
 The durable primary is FoundationDB. One Node service accepts writes and may
 execute disjoint transactions concurrently through the ordered transactional KV
 adapter. SQLite remains an optional serialized adapter. This roadmap starts from `8f337cd`, which includes
@@ -273,6 +273,22 @@ oversized/mismatched bytes, crash recovery and idempotent cleanup/application.
 No secret, hidden source ID, undeclared summary count or raw diagnostic reaches clients.
 
 ## D5 — Recovery, release and selected operations
+
+**Accepted 2026-11-19.** Fresh complete verification passed526 tests, zero
+failed/skipped, Node26.12.0, including45 new independent registrations. Signed
+native namespace/receipt and ready/staged file backups restore into empty candidates;
+full HTTP/source/reference/file pipeline checking, old session/proof/cursor fencing,
+provider incarnation takeover, concurrent activation rejection and real SIGKILL
+at backup/prepare/activation pass. Runtime admission drains nested HTTP/upload/provider
+work; bootstrap, health and packaged start/stop/reopen pass. Extracted archives retain
+the exact source lock, reject alternate/tampered locks and resolve all8 dependencies
+to the locked versions after `npm ci`. Two local packs were byte-identical.
+Seed20261119 measured128 rows/40 steps,31 commits/9 deliberate failures;
+mutation p50=27.26ms/p95=39.65ms. Source witness scans and CPU/RSS/native client
+bytes are separately recorded in [D5 evidence](evidence/2026-11-19-d5.json).
+The [deployment guide](deployment.md) describes the selected Linux installation.
+Live provider delivery/retention, remote hosting, replicated server failure, disk/
+power loss, multi-process activation and larger capacity remain unverified.
 
 Build a reproducible self-hosted Linux release with external custody keys, explicit
 bootstrap, health/shutdown, database/object backup and restore incarnation rotation.

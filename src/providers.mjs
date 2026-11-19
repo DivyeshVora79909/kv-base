@@ -25,10 +25,10 @@ function createMessageProvider({ protocol, baseUrl, fetch: transport = globalThi
   const base = new URL(baseUrl); if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password) fail('INVALID_PROVIDER', 'Invalid provider URL');
   const validate = value => { const message = request(value, operation); if (Buffer.byteLength(JSON.stringify(encode(protocol, operation, message))) > maxRequestBytes) fail('UNSUPPORTED_EFFECT', 'Provider request exceeds configured byte limit'); return message; };
   const headers = (secret, operationId, fence) => protocol === 'resend' ? { 'content-type': 'application/json', authorization: `Bearer ${secret.toString('utf8')}`, 'idempotency-key': operationId, 'x-attempt-epoch': fence } : { 'content-type': 'application/json', 'api-key': secret.toString('utf8'), 'x-operation-key': operationId, 'x-attempt-epoch': fence };
-  async function send({ operationId, request: input, secret, fence = '0' }) {
+  async function send({ operationId, request: input, secret, fence = '0', incarnation }) {
     const message = validate(input); if (typeof operationId !== 'string' || !Buffer.isBuffer(secret)) fail('INVALID_PROVIDER', 'Invalid provider start');
     try {
-      const response = await transport(new URL(path(protocol, operation), base), { method: 'POST', headers: headers(secret, operationId, fence), body: JSON.stringify(encode(protocol, operation, message)), signal: AbortSignal.timeout(timeoutMs) });
+      const response = await transport(new URL(path(protocol, operation), base), { method: 'POST', headers: {...headers(secret, operationId, fence),...(incarnation===undefined?{}:{'x-attempt-incarnation':incarnation})}, body: JSON.stringify(encode(protocol, operation, message)), signal: AbortSignal.timeout(timeoutMs) });
       if ([400, 401, 403, 404, 422, 429].includes(response.status)) return { status: 'rejected', reason: `provider HTTP ${response.status}` };
       if (!response.ok) return { status: 'unknown', reason: `provider HTTP ${response.status}` };
       let body; try { body = await response.json(); } catch { return { status: 'unknown', reason: 'provider response unreadable' }; }
@@ -46,15 +46,17 @@ export const createSmsProvider = options => createMessageProvider(options, 'sms.
 
 function createFakeMessageClient({ protocol, baseUrl, fetch: transport = globalThis.fetch, timeoutMs = 5000 } = {}, operation) {
   const base = new URL(baseUrl);
-  const lookup = async ({ operationId, secret, fence = '0' }) => {
+  async function status(kind,{operationId,secret,fence='0',incarnation,expectedIncarnations=[]}) {
     try {
-      const response = await transport(new URL(`/operations/${encodeURIComponent(operationId)}/fence`, base), { method: 'POST', headers: { 'content-type': 'application/json', ...(protocol === 'resend' ? { authorization: `Bearer ${secret.toString('utf8')}` } : { 'api-key': secret.toString('utf8') }) }, body: JSON.stringify({ fence }), signal: AbortSignal.timeout(timeoutMs) });
-      if (!response.ok) return { status: 'unknown', reason: 'fake provider lookup unavailable' };
-      const body = await response.json(); return typeof body.providerId === 'string' ? { status: 'accepted', providerId: body.providerId, fence: body.fence } : body.status === 'absent' ? { status: 'absent', fence: body.fence } : { status: 'unknown', reason: 'fake provider lookup malformed' };
-    } catch { return { status: 'unknown', reason: 'fake provider lookup unknown' }; }
-  };
+      const response=await transport(new URL('/operations/'+encodeURIComponent(operationId)+'/'+kind,base),{method:'POST',headers:{'content-type':'application/json',...(protocol==='resend'?{authorization:'Bearer '+secret.toString('utf8')}:{'api-key':secret.toString('utf8')})},body:JSON.stringify({fence,...(incarnation===undefined?{}:{incarnation}),...(kind==='restore'?{expectedIncarnations}:{})}),signal:AbortSignal.timeout(timeoutMs)});
+      if(!response.ok)return{status:'unknown',reason:kind==='restore'?'fake provider restore incarnation CAS rejected':'fake provider lookup unavailable'};
+      const body=await response.json(),proof={fence:body.fence,...(body.incarnation===undefined?{}:{incarnation:body.incarnation}),...(kind==='restore'?{reserved:body.reserved===true}:{})};
+      return typeof body.providerId==='string'?{status:'accepted',providerId:body.providerId,...proof}:body.status==='absent'?{status:'absent',...proof}:{status:'unknown',reason:'fake provider lookup malformed'};
+    }catch{return{status:'unknown',reason:'fake provider lookup unknown'};}
+  }
+  const lookup=args=>status('fence',args),reserveRestore=args=>status('restore',args);
   const provider = createMessageProvider({ protocol, baseUrl, fetch: transport, timeoutMs, lookup }, operation);
-  return Object.freeze({ ...provider, capabilities: Object.freeze({ ...provider.capabilities, providerFence: true, safeRetryAfterAbsent: true }) });
+  return Object.freeze({ ...provider,reserveRestore, capabilities: Object.freeze({ ...provider.capabilities, providerFence: true, restoreFence: true, safeRetryAfterAbsent: true }) });
 }
 /** Fake status API fences obsolete starts durably; do not assume it exists live. */
 export const createFakeEmailClient = options => createFakeMessageClient(options, 'email.send');
@@ -72,11 +74,19 @@ export async function createFakeProviderServer({ protocol, store, secret = 'test
       const authorization = protocol === 'resend' ? (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice('Bearer '.length) : undefined) : req.headers['api-key'];
       if (typeof authorization !== 'string' || !equal(authorization, secret)) { stats.rejections++; return reply(401, { error: 'credential rejected' }); }
       const url = new URL(req.url, 'http://local');
-      if (req.method === 'POST' && url.pathname.startsWith('/operations/') && url.pathname.endsWith('/fence')) {
-        stats.lookups++; const id = decodeURIComponent(url.pathname.slice('/operations/'.length, -'/fence'.length)), body = await readBody(req);
-        if (typeof body.fence !== 'string' || !/^(0|[1-9][0-9]*)$/.test(body.fence)) return reply(422, { error: 'invalid fence' });
-        const record = await store.transact(async tx => { const key = prefix + id, prior = await tx.get(key), minimumFence = BigInt(prior?.minimumFence ?? '0') > BigInt(body.fence) ? prior.minimumFence : body.fence; const next = { ...prior, operationId: id, minimumFence, deliveries: prior?.deliveries ?? 0 }; await tx.set(key, next); return next; });
-        return record.providerId ? reply(200, { providerId: record.providerId, deliveries: record.deliveries, fence: record.minimumFence }) : reply(200, { status: 'absent', fence: record.minimumFence });
+      if(req.method==='POST'&&url.pathname.startsWith('/operations/')&&(url.pathname.endsWith('/fence')||url.pathname.endsWith('/restore'))){
+        stats.lookups++;const restoring=url.pathname.endsWith('/restore'),ending=restoring?'/restore':'/fence',id=decodeURIComponent(url.pathname.slice('/operations/'.length,-ending.length)),body=await readBody(req);
+        if(typeof body.fence!=='string'||!/^(0|[1-9][0-9]*)$/.test(body.fence)||body.incarnation!==undefined&&(typeof body.incarnation!=='string'||!body.incarnation.length))return reply(422,{error:'invalid fence/incarnation'});
+        if(restoring&&(!body.incarnation||!Array.isArray(body.expectedIncarnations)||body.expectedIncarnations.some(value=>typeof value!=='string'||!value.length)))return reply(422,{error:'invalid restore CAS'});
+        const record=await store.transact(async tx=>{
+          const key=prefix+id,prior=await tx.get(key);
+          if(restoring){if(prior?.incarnation!==undefined&&prior.incarnation!==body.incarnation&&!body.expectedIncarnations.includes(prior.incarnation))fail('STALE_PROVIDER_INCARNATION','Restore CAS predecessor differs');}
+          else if(prior?.incarnation!==undefined&&prior.incarnation!==body.incarnation)fail('STALE_PROVIDER_INCARNATION','Obsolete provider lookup');
+          const maximum=BigInt(prior?.minimumFence??'0')>BigInt(body.fence)?BigInt(prior.minimumFence):BigInt(body.fence),minimumFence=String(maximum+(restoring?1n:0n));
+          const next={...prior,operationId:id,minimumFence,deliveries:prior?.deliveries??0,...(body.incarnation===undefined?{}:{incarnation:body.incarnation})};await tx.set(key,next);return next;
+        });
+        const proof={fence:record.minimumFence,...(record.incarnation===undefined?{}:{incarnation:record.incarnation}),...(restoring?{reserved:true}:{})};
+        return record.providerId?reply(200,{providerId:record.providerId,deliveries:record.deliveries,...proof}):reply(200,{status:'absent',...proof});
       }
       if (req.method === 'GET' && url.pathname.startsWith('/operations/')) {
         stats.lookups++; const id = decodeURIComponent(url.pathname.slice('/operations/'.length)), record = await store.read(tx => tx.get(prefix + id)); return record?.providerId ? reply(200, { providerId: record.providerId, deliveries: record.deliveries }) : reply(404, { status: 'absent' });
@@ -85,14 +95,16 @@ export async function createFakeProviderServer({ protocol, store, secret = 'test
       if (req.method !== 'POST' || url.pathname !== path(protocol, operation)) return reply(404, { error: 'unsupported route' });
       const operationId = protocol === 'resend' ? req.headers['idempotency-key'] : req.headers['x-operation-key'];
       if (typeof operationId !== 'string' || !operationId.length) return reply(422, { error: 'operation identity required' });
+      const incarnation=req.headers['x-attempt-incarnation'];if(incarnation!==undefined&&(typeof incarnation!=='string'||!incarnation.length))return reply(422,{error:'invalid attempt incarnation'});
       const fence = req.headers['x-attempt-epoch'] ?? '0'; if (typeof fence !== 'string' || !/^(0|[1-9][0-9]*)$/.test(fence)) return reply(422, { error: 'invalid attempt epoch' });
       const message = unwrap(protocol, operation, await readBody(req)), digest = fingerprint([operation, message]); stats.starts++;
       const accepted = await store.transact(async tx => {
         const key = prefix + operationId, prior = await tx.get(key);
+        if(prior?.incarnation!==undefined&&prior.incarnation!==incarnation)fail('STALE_PROVIDER_INCARNATION','Obsolete provider start incarnation');
         if (BigInt(fence) < BigInt(prior?.minimumFence ?? '0')) fail('STALE_PROVIDER_FENCE', 'Obsolete provider start');
         if (prior?.digest && prior.digest !== digest) fail('PROVIDER_OPERATION_MISMATCH', 'Provider operation payload changed');
         if (prior?.providerId && protocol === 'resend') return { ...prior, replayed: true };
-        const result = { operationId, operation, digest, minimumFence: prior?.minimumFence ?? '0', providerId: `${protocol}-${randomBytes(12).toString('hex')}`, deliveries: (prior?.deliveries ?? 0) + 1, request: message }; await tx.set(key, result); return result;
+        const result = { operationId, operation, digest, minimumFence:String(BigInt(prior?.minimumFence??'0')>BigInt(fence)?BigInt(prior.minimumFence):BigInt(fence)),...(incarnation===undefined?{}:{incarnation}), providerId: `${protocol}-${randomBytes(12).toString('hex')}`, deliveries: (prior?.deliveries ?? 0) + 1, request: message }; await tx.set(key, result); return result;
       });
       if (afterAccepted) await afterAccepted({ operationId, accepted, request: req, response: res });
       if (res.destroyed) return;

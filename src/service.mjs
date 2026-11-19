@@ -24,9 +24,9 @@ Object.assign(statuses, { STORAGE_LIMIT: 429, INVALID_OBJECT: 400, INVALID_OBJEC
  * transport callbacks, secret keys or diagnostic APIs. TLS belongs to the host. */
 export function createService({ engine, identity, logins, publicModels, writableModels, operations = {}, objects,
   maxBodyBytes = 262144, maxResponseBytes = 4194304, maxActive = 32, maxPageSize = 100,
-  requestTimeoutMs = 30000, maxUploadBytes = 16777216, maxDownloadBytes = maxUploadBytes, clock = Date.now, onError = () => {} }) {
+  requestTimeoutMs = 30000, maxUploadBytes = 16777216, maxDownloadBytes = maxUploadBytes, clock = Date.now, onError = () => {}, getHealth = () => ({ status: 'ok' }) }) {
   if (!engine?.catalog || !identity || identity.tenant !== engine.tenant || !logins || !Array.isArray(publicModels) || writableModels !== undefined && !Array.isArray(writableModels)
-    || typeof clock !== 'function' || ![maxBodyBytes, maxResponseBytes, maxActive, maxPageSize, requestTimeoutMs, maxUploadBytes, maxDownloadBytes].every(finite)) fail('INVALID_SERVICE', 'Invalid service configuration');
+    || typeof clock !== 'function' || typeof getHealth !== 'function' || ![maxBodyBytes, maxResponseBytes, maxActive, maxPageSize, requestTimeoutMs, maxUploadBytes, maxDownloadBytes].every(finite)) fail('INVALID_SERVICE', 'Invalid service configuration');
   if (objects && (objects.tenant !== engine.tenant || !engine.catalog.models[objects.model]?.access)) fail('INVALID_SERVICE', 'Objects must use the fixed service tenant and catalog');
   if (requestTimeoutMs > 2147483647) fail('INVALID_SERVICE', 'Request timeout exceeds native timer range');
   const models = new Set(publicModels), writes = new Set(writableModels ?? publicModels.filter(model => model !== objects?.model)), accounts = new Map(Object.entries(logins));
@@ -123,7 +123,11 @@ export function createService({ engine, identity, logins, publicModels, writable
       active++; admitted = true;
       const url = new URL(request.url, 'http://localhost');
       if (url.search || request.headers.origin !== undefined) fail('BAD_REQUEST', 'Unsupported request');
-      if (request.method === 'GET' && url.pathname === '/health') { send(response, 200, { status: 'ok' }); return; }
+      if (request.method === 'GET' && url.pathname === '/health') {
+        const health = await getHealth(), status = health?.status;
+        if (!['ok', 'ready', 'uninitialized', 'unavailable', 'stopped'].includes(status)) fail('INVALID_SERVICE', 'Invalid trusted health status');
+        send(response, ['ok', 'ready'].includes(status) ? 200 : 503, { status }); return;
+      }
       if (objects && request.method === 'PUT' && url.pathname === '/v1/objects/upload') {
         const bearer = token(request), grant = request.headers['x-upload-grant'];
         if (typeof grant !== 'string' || request.headers['content-type'] !== 'application/octet-stream') fail('BAD_REQUEST', 'Upload grant and byte body required');

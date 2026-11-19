@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a, D2b, D3 and D4 are accepted; D5 is next.** The implementation baseline is
+**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a, D2b, D3, D4 and D5 are accepted.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -176,10 +176,38 @@ D2b was published at `0d6b466`; its16 post-commit checks passed. Object download
 hash full bytes; file/source checking and reconciliation are bounded scans, not
 logarithmic queries. HTTP TLS/remote host remain operator configuration.
 
-Next gates retain release/bootstrap, complete backup/restore, measured local workload
-and selected deployment. None is supplied by
-native files or adapters in this repository. Full accounting, recurrence, temporal
-wakeups, live feeds, frontend, online migration and reactive rank windows are deferred.
+D5 accepted on 2026-11-19: **526 tests passed**, zero failed/skipped, Node26.12.0,
+npm12.2.0, on the same owned FoundationDB7.3.81 target. Forty-five new registrations
+check exact signed native data/receipts/format and complete staged/ready files,
+empty-target restoration, original activation recovery, concurrent activation,
+old-session/proof/grant/cursor/lease fences and provider incarnation takeover.
+An independent restored pipeline checks complete source facts/references/files,
+new delivered proof/session, visible+100/full20, attachment download and cleanup.
+Runtime bootstrap/readiness/drain and actual SIGKILL backup/prepare/activation pass.
+The extracted npm archive passes locked installation, all8 actual dependency
+resolutions and subprocess start/stop/reopen. Its generated RELEASE-LOCK exactly
+preserves the source package-lock; missing, altered and alternate locks reject.
+Two packs were byte-identical. See [D5 evidence](docs/evidence/2026-11-19-d5.json)
+and [Linux operations](docs/deployment.md). D4 was published at `79c2e2f` and
+its47 focused post-commit checks passed. D5 tested source hash is
+`36068d37b7e5fb9ef7d0a6d270135abbcbc9813434b2229e99d60e662a563c9d`;
+the evidence distinguishes that verified worktree from its Git parent.
+
+Fresh FDB seed20261119 measured128 contributors (hot96/warm24/cold8),40 steps,
+31 commits/9 deliberate failures, mutation p50=27.26ms/p95=39.65ms. Native client
+attempted217401B/committed191899B/read499603B; independent source witnesses scanned
+5120 keys/1742673B and query reads visited3840 nodes. Total measured wall8108ms,
+verification4765ms and query reads2171ms; peak process RSS207544320B. This is a
+small local fixture. Native payload counters exclude network, disk amplification
+and replication; source/file/checkpoint/rebuild checks are bounded full scans.
+
+All documented R/D gates are complete for the selected local Linux topology.
+Remote host/TLS setup, live email/SMS delivery and long-term provider retention,
+replicated server failure, disk/power loss and larger capacity require their own
+target evidence. Backup is offline and bounded by native transaction size; activation
+coordination across operator processes is deferred. Raw retained privileged handles
+must obey the writer pause. Full accounting, recurrence, temporal wakeups, live
+feeds, frontend, online migration and reactive rank windows remain deferred.
 No persisted Rust-format compatibility or automatic database migration is promised.
 
 ## Working method

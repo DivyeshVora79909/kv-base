@@ -44,10 +44,12 @@ same catalog and owner policy. The memory adapter remains volatile.
 Private local object grants, streaming upload/finalize/download and fixed
 authenticated HTTP routes are implemented. The [pipeline example](examples/pipeline.mjs)
 shares one ordinary catalog for ledger calculations, typed object attachments and
-private provider delivery. Fresh D4 verification passed481 tests, zero failed/skipped;
-backup/restore and Linux release are the next checkpoint.
+private provider delivery. Signed complete offline backup/restore, restore fencing,
+explicit bootstrap, draining shutdown and a checked self-hosted Linux source release
+are implemented. Fresh D5 verification passed526 tests, zero failed/skipped, including
+an extracted, locked-install subprocess start/stop/reopen.
 
-Fresh R1–R5 engine and D1/D1F/D2/D3 durable verification is recorded in the
+Fresh R1–R5 engine and D1–D5 durable/operational verification is recorded in the
 [handoff](CONTEXT.md) and [checkpoint evidence](docs/checkpoints.md). Primary-target
 tests require an owned FoundationDB cluster and its native client library:
 
@@ -57,6 +59,9 @@ KV_BASE_FDB_CLUSTER_FILE=/path/to/fdb.cluster npm test
 
 Set the native library search path if `libfdb_c.so` is not installed system-wide.
 Absent a selected cluster, real-target tests skip and do not establish acceptance.
+The installed release smoke also requires `KV_BASE_RELEASE_PACKAGE` pointing to
+a checked extracted package after its locked `npm ci`; see
+[Linux deployment](docs/deployment.md) for release and custody setup.
 MIT licensed; see [LICENSE](LICENSE).
 [.nvmrc](.nvmrc) selects the Node 24 baseline. Hosted CI results are separate from
 this local verification. Live provider delivery, replicated failure, power loss,

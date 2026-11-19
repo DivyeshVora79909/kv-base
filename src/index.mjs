@@ -24,3 +24,6 @@ export { createEmailProvider, createSmsProvider, createFakeEmailClient, createFa
 export { createIdentityProofs } from './identity-proofs.mjs';
 export { objectModel, openObjectStore } from './objects.mjs';
 export { createService } from './service.mjs';
+export { openSelfHosted, readDeployment, readKeyringFile, writeDeployment } from './self-hosted.mjs';
+export { writeBackup, readBackup, prepareRestoration, activateRestoration } from './operations.mjs';
+export { prepareRelease, checkRelease } from './release.mjs';

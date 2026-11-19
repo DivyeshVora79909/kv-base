@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile,readdir} from 'node:fs/promises';
+import {join} from 'node:path';
+import {createHash,randomUUID} from 'node:crypto';
+import {runtimeFixture} from './helpers/runtime-fixture.mjs';
+import {writeBackup,prepareRestoration,activateRestoration} from '../src/operations.mjs';
+import {openSelfHosted} from '../src/self-hosted.mjs';
+import {openFoundationDbStore} from '../src/foundationdb.mjs';
+import {sourceKey,sourcePrefix} from '../src/keys.mjs';
+import {ledgerIndex,ownerIndex} from '../examples/pipeline.mjs';
+const sha=value=>createHash('sha256').update(value).digest('hex');
+const authored=({id,model,owner,data})=>({id,model,owner,data});
+const skip=process.env.KV_BASE_FDB_CLUSTER_FILE?false:'Selected real FDB cluster required';
+
+test('D5 independent signed runtime restore independently preserves the complete HTTP proof,source,reference and file pipeline',{skip},async t=>{
+ const f=await runtimeFixture(t);await f.runtime.bootstrap(f.bootstrap);await f.start();const initial=await f.proof('email'),bytes=Buffer.from([0,255,128,7,9]),objectId='restored-attachment';
+ const grant=await f.call('/v1/objects/begin',{operationId:'object-begin',id:objectId,owner:'reader',bytes:bytes.length,sha256:sha(bytes)},initial.token);assert.equal(grant.status,200);
+ const upload=await fetch(f.url+'/v1/objects/upload',{method:'PUT',headers:{authorization:'Bearer '+initial.token,'x-upload-grant':grant.body.uploadToken,'content-type':'application/octet-stream'},body:bytes});assert.equal(upload.status,200);
+ assert.equal((await f.call('/v1/objects/finalize',{operationId:'object-finalize',id:objectId,uploadToken:grant.body.uploadToken},initial.token)).status,200);
+ const visible=await f.runtime.engine.read(tx=>tx.get(sourceKey('t','visible-entry'))),attached={...visible,data:{...visible.data,attachment:objectId}};
+ assert.equal((await f.call('/v1/mutate',{operationId:'attach',changes:[{type:'put',record:authored(attached)}]},initial.token)).status,200);
+ const pending=await f.call('/v1/proof/begin',{username:'reader',channel:'phone',operationId:'unconsumed-proof'});assert.equal(pending.status,200);await f.runtime.drainEffects({maxJobs:1});const code=/code is (\d{8})\./.exec((await f.sms.ledger()).at(-1).value.request.text)[1];
+ const query={index:ledgerIndex,partition:['ledger'],limit:1},cursor=(await f.runtime.engine.window(query)).cursor;assert.ok(cursor);
+ const expected=await f.runtime.engine.read(tx=>tx.scan({prefix:sourcePrefix('t')})),files=await f.runtime.objects.checkFiles(),names=(await readdir(new URL('../src/',import.meta.url))).sort(),sourceHash=sha(JSON.stringify(await Promise.all(names.filter(name=>name.endsWith('.mjs')).map(async name=>[name,sha(await readFile(new URL('../src/'+name,import.meta.url)))]))));
+ const backup=await writeBackup({runtime:f.runtime,objectRoot:f.objectRoot,directory:join(f.directory,'verified-backup'),keyring:f.runtime.keyring,incarnation:f.descriptor.incarnation,sourceIdentity:{revision:'independent-runtime-restoration',sourceHash,lockHash:sha(await readFile(new URL('../package-lock.json',import.meta.url))),catalogIdentity:f.catalog.identity},quiesce:callback=>f.runtime.quiesce(callback)});
+ const prefix='independent-restored-'+randomUUID(),store=await openFoundationDbStore({clusterFile:f.descriptor.clusterFile,prefix});t.after(()=>store.close());const oldRuntime=f.runtime;
+ const prepared=await prepareRestoration({backupDirectory:backup.directory,keyring:oldRuntime.keyring,target:{store,prefix,objectRoot:join(f.directory,'restored-files'),clusterFile:f.descriptor.clusterFile},catalog:f.catalog,tenant:'t',openCandidate:({store,objectRoot,incarnation,previousIncarnations})=>openSelfHosted({...f.configuration(),deploymentFile:undefined,descriptor:{...f.descriptor,prefix,objectRoot,incarnation,previousIncarnations},storage:store})});
+ assert.deepEqual(await prepared.runtime.engine.read(tx=>tx.scan({prefix:sourcePrefix('t')})),expected);assert.deepEqual((await prepared.runtime.objects.checkFiles()).files,files.files);
+ const selected=await activateRestoration({handle:prepared,deploymentFile:f.deploymentFile,operationId:'verified-restore',stopPrevious:()=>oldRuntime.close()});assert.notEqual(selected.incarnation,f.descriptor.incarnation);await prepared.runtime.close();await f.open();await f.start();
+ await assert.rejects(f.runtime.identity.read(initial.token,()=>true),{code:'UNAUTHENTICATED'});await assert.rejects(f.runtime.proofs.complete({proofId:pending.body.proofId,code,operationId:'restored-old-proof'}),{code:'UNAUTHENTICATED'});await assert.rejects(f.runtime.engine.window(query,{cursor}),{code:'INVALID_CURSOR'});
+ const freshBegin=await f.call('/v1/proof/begin',{username:'reader',channel:'phone',operationId:'fresh-restored-proof'});assert.equal(freshBegin.status,200);await f.runtime.drainEffects({maxJobs:1});const freshEffect=await f.runtime.engine.read(tx=>tx.get(sourceKey('t','identity-proof:'+freshBegin.body.proofId))),deliveredFresh=(await f.sms.ledger()).find(row=>row.value.operationId===freshEffect.data.providerOperationId),freshCode=/code is (\d{8})\./.exec(deliveredFresh.value.request.text)[1],freshComplete=await f.call('/v1/proof/complete',{proofId:freshBegin.body.proofId,code:freshCode,operationId:'fresh-restored-session'});assert.equal(freshComplete.status,200);const fresh=freshComplete.body;
+ const rows=await f.call('/v1/query',{kind:'index',query:{model:'Entry',index:ownerIndex,partition:['ledger'],limit:10}},fresh.token);assert.deepEqual(rows.body.records,[attached]);const summary=await f.call('/v1/query',{kind:'summary',query:{index:ledgerIndex,partition:['ledger']}},fresh.token);assert.deepEqual(summary.body,{summary:{balance:'20'}});
+ const downloaded=await fetch(f.url+'/v1/objects/'+objectId+'/data',{headers:{authorization:'Bearer '+fresh.token}});assert.equal(downloaded.status,200);assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()),bytes);
+ const blocked=await f.call('/v1/objects/remove',{operationId:'still-attached',id:objectId},fresh.token);assert.notEqual(blocked.status,200);assert.equal(JSON.stringify(blocked.body).includes('visible-entry'),false);assert.equal((await f.runtime.objects.status(fresh.token,objectId)).state,'ready');
+ assert.equal((await f.call('/v1/mutate',{operationId:'unlink',changes:[{type:'put',record:authored(visible)}]},fresh.token)).status,200);await f.runtime.engine.check();
+ const removal=await f.call('/v1/objects/remove',{operationId:'remove-restored',id:objectId},fresh.token);assert.equal(removal.status,200,JSON.stringify(removal));await f.runtime.objects.reconcile();assert.equal((await f.runtime.objects.checkFiles()).ready,0);await f.runtime.engine.check();
+});

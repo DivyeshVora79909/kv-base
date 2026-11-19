@@ -1047,3 +1047,117 @@ contain a sanitized code; hidden IDs, secrets, counters, ranks and raw diagnosti
 are not wire fields. `listen({host,port})` defaults loopback/ephemeral and `close()`
 stops admission and drains admitted requests. TLS/proxy and browser integration are
 operator deployment choices. Logical byte limits do not prove a heap/capacity bound.
+
+## Linux runtime, recovery and release (D5)
+
+The [deployment guide](deployment.md) owns operator recipes. `readDeployment(path)`
+and `readKeyringFile(path)` read bounded private regular files; symlinks, public
+permissions and unsupported formats reject. `writeDeployment({deploymentFile,
+descriptor})` creates the initial fsynced descriptor without replacing an existing
+installation. A descriptor binds version, explicit cluster file/prefix, object root,
+tenant, catalog identity and external incarnation; restored descriptors also retain
+known previous incarnations and original backup/activation identity. Keys stay external.
+
+`openSelfHosted({descriptor?,deploymentFile?,definition?|catalog?,keys?|keyring?|
+keyringFile?,activeKey?,logins,contacts,channels,providers,deliveryContext?,...})`
+opens the selected Linux FoundationDB installation. Select one catalog and one
+custody source. It validates actual adapter location against the descriptor.
+Engine, identity, proofs, custody, effects, objects and HTTP share that catalog and
+current identity policy. Candidate open starts no listener or worker. Service and
+worker tuning fields cannot replace those fixed components. Host clock, password,
+proof, engine/object limits and private callbacks remain trusted configuration.
+
+`runtime.bootstrap({operationId,policy,credentials,sources,providerCredentials})`
+is privileged initial enrollment. A private HMAC claim binds the entire original
+request and catalog. Interrupted claim/identity/seed phases resume under that exact
+identity; final seed/provider changes and original receipt commit together. Completed
+bootstrap never reseeds or rotates provider revisions on replay. A different request
+cannot take over the namespace. Bootstrap and current complete source/file checks
+must pass before ingress. Credentials and provider secrets never persist as plaintext.
+
+`runtime.start({host?,port?,workerIntervalMs?,maxJobs?})` owns one listener and a
+bounded worker schedule. Defaults are loopback, ephemeral port,250ms interval and
+one job per tick; zero interval disables automatic worker admission. HTTP health
+uses runtime readiness:200 for ready/ok,503 for unavailable/stopped/uninitialized.
+It contains no target, secret or diagnostic fields. `runtime.health()` is also an
+importable sanitized status. A changed selected descriptor/incarnation makes the
+old runtime unavailable; reopen the newly selected installation explicitly.
+
+`runtime.drainEffects(options)` and the returned identity/proof/object/engine/worker
+facades register work synchronously before async admission. Nested work is tracked;
+escaped async contexts cannot reuse an expired admission. `runtime.quiesce(callback)`
+stops new ingress/workers and waits for admitted HTTP/uploads/provider calls and
+application. Its callback admits only maintenance read/check/cleanup work; it then
+closes the runtime. `close()` drains before storage close. Nested lifecycle calls
+reject instead of waiting on themselves. Raw `runtime.storage`, raw underlying
+facades and independently retained privileged helpers can bypass admission; they
+must not write during quiescence.
+
+`store.captureCheckpoint({maxRows?,maxBytes?})` is a privileged FoundationDB
+snapshot of the exact selected native suffix/value bytes, including data, receipts
+and format. Defaults are100000 rows and8MiB. The full native namespace range is
+protected. `restoreCheckpoint(snapshot,{...limits,beforeCommit?,afterCommit?})`
+requires an initialized empty candidate namespace, validates binary ordering/format,
+and imports once atomically. Definite failures and lost acknowledgement remain
+distinct. Native key/value/transaction/lifetime limits additionally apply. This
+versioned Node/V8 artifact is not a cross-runtime migration format.
+
+`writeBackup({runtime,objectRoot,directory,keyring,incarnation,sourceIdentity,
+backupId?,quiesce,limits?,checkpointLimits?,after?})` requires a trusted complete
+pause. It checks the engine/files, captures the native checkpoint, hashes/copies
+ready/staged bytes, rechecks the inventory and publishes a signed manifest plus
+`snapshot.bin` and `files/` by directory rename. `sourceIdentity` is the checked
+release's `{revision,sourceHash,lockHash,catalogIdentity}`. External keys/descriptor
+are not backup contents. Default bounds are10000 files,256MiB file bytes,1MiB
+manifest and16MiB serialized snapshot. Actual native backup size remains bounded
+by the adapter's smaller checkpoint/transaction caps.
+
+`readBackup({directory,keyring,limits?})` authenticates before V8 decoding and rejects
+missing/unexpected artifacts and inconsistent inventories. `prepareRestoration({
+backupDirectory,keyring,target:{store,prefix,clusterFile,objectRoot},catalog,tenant,
+openCandidate,previousIncarnations?,...limits})` verifies actual target identity,
+imports into empty state and opens an offline candidate with a fresh incarnation.
+It checks complete source/derived/receipt/file state and returns a verified
+process-local handle. The opener must retain that exact raw storage handle and
+supply the quiescence boundary. Partial candidates never replace active state.
+
+`activateRestoration({handle,deploymentFile,operationId,stopPrevious,after?})`
+stops the previous runtime and quiesces the candidate for the entire final check
+and descriptor publication. Exact native bytes and file inventory/hash/modes must
+still match the authenticated backup. Candidate facade writes are denied during
+publication. Activation serializes admission per deployment file within the selected
+process. The descriptor commits by fsynced rename; lost acknowledgement recovers
+the original descriptor and different backups cannot share that operation identity.
+Activation closes the candidate; reopen/start the selected descriptor. Separate
+operator processes must coordinate; distributed activation is not accepted.
+
+Custody configuration `getRestoreFence` and `getPreviousRestoreFence` binds effects
+to external incarnation history. Accepted request/grant identity remains immutable;
+claims, starts, completion tokens and publication checks bind current incarnation.
+Restored pending intent first requires original-key provider status. Fake providers
+implement `reserveRestore` with a fixed known predecessor list, atomic incarnation
+takeover and strict external epoch advance. Old-incarnation lookup/send rejects even
+when its numeric epoch is higher. Reservation facts and dispatch markers persist
+before a newly admitted send. Stale restore CAS cannot revive after a later restore.
+Unsupported/no-lookup restored work is isolated, including live Resend without
+qualified restore fencing. Live idempotency retention is not inferred from headers.
+
+`prepareRelease({repository,directory,sourceIdentity:revision,catalogIdentity,
+maxFiles?,maxBytes?})` produces a deterministic checked source directory and
+`RELEASE.json`, excluding installed dependencies, keys and application state.
+`checkRelease({directory,...limits})` verifies its source/lock/catalog identity and
+complete selected inventory. Defaults are10000 files/128MiB. Ordinary `npm ci` and
+`npm pack` supply install/package mechanics. `RELEASE-LOCK.json` is generated
+byte-for-byte from the authoritative `package-lock.json`, since npm can omit its
+reserved lock filenames from archives. The derived file is required by the checker;
+when the original lock exists both must match. Extract an archive, check it, copy
+the derived lock to `package-lock.json`, then run `npm ci` and check again. Installing
+into another application's dependency tree does not enforce this release's lock.
+Source inventory determinism does not
+certify arbitrary native build identity or remote deployment.
+
+Workload functions also retain `nativeAdapter` counters per outcome and aggregate
+native read/attempted/committed write bytes separately from logical staged/change
+bytes and source witness scans. These native counters include namespace/V8 encoding,
+but exclude network framing, disk amplification and replication. RSS/CPU and latency
+are measured local observations, not a general capacity or heap guarantee.
