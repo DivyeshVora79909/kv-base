@@ -26,7 +26,7 @@ The three tests in [test/relations-example.test.mjs](../test/relations-example.t
 
 `readIncomingAuthorized(store, catalog, { tenant, actor }, { targetId, model, slot,
 limit }, { getAuthority, ...budgets })` reads authority and candidates in one snapshot.
-The target must pass Read. Each incoming key and source reference slot/array position
+The target identity/type is checked without requiring Read. Each incoming key and source reference slot/array position
 must agree with the hydrated source, then that source must independently pass Read.
 Readable target ownership does not authorize hidden referencers. Results contain
 distinct readable source records sorted by UTF-8 ID, with no raw counts or summary.
@@ -38,15 +38,18 @@ including original/proposed/final target owners and final authority. Existing
 references and engine-managed repairs retain their separate integrity obligations.
 The independent [authorized read](../test/authorized-read.test.mjs) and
 [mutation](../test/authorized-mutate.test.mjs) witnesses cover hidden contributors,
-missing Use, owner transfers, retargeting and atomic rollback. The existing full
-source-derived checker remains unchanged.
+missing Use, owner transfers, retargeting and atomic rollback. The full source-derived checker independently reconstructs the final graph.
 
-Under the planned R3 contract, an intermediate reference edit can change a
-membership even when its contributing record stays untouched. R4 also changes
-the target Read requirement described above. A reverse lookup must apply the
-same tenant, action and owner checks to each returned record as a direct lookup.
-Reading a source through a relation does not disclose the target body. The
-[checkpoint roadmap](checkpoints.md) specifies the move, rollback and visibility tests.
+Under the accepted R3 contract, finite explicitly typed scalar reference paths can
+change a membership when an intermediate record changes and the contributor stays
+untouched. Old/final edge discovery reconciles business and local source-owner
+partitions atomically. Path targets are authored models; managed contributors may
+follow them. R4 applies the same record policy across point/indexed/reverse reads;
+an intermediate or lookup record grants no permission and needs no extra Read.
+See [path examples](../examples/reference-path.mjs) and the
+[checkpoint roadmap](checkpoints.md) for independent move/rollback/visibility evidence.
+R5 generations retain one shared source authority and rotate derived reverse/claim
+state with the checked candidate. Raw incoming scans remain privileged.
 
 ## Performance and adapter boundary
 

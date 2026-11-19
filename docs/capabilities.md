@@ -116,7 +116,7 @@ single canonical model requirement by themselves.
 
 The original JS-P1–JS-P5 plan below records which obligations the prototype took
 from the native baseline. The [active roadmap](checkpoints.md) carries the
-unfinished work into R1–R5 and identifies which existing contracts need adaptation.
+R1–R5 redesign, now locally accepted, and separates later durable/service gates.
 
 - JS-P1: canonical model specification/compiler, independent source oracle and
   in-memory transactional adapter with explicit atomic staging and read semantics.

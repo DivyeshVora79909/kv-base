@@ -18,31 +18,31 @@ From the repository-root Node REPL:
 
 ```js
 const engine = await import('./src/index.mjs');
-const example = await import('./examples/activity.mjs');
-const catalog = engine.prepareCatalog(example.activityDefinition);
+const example = await import('./examples/structural.mjs');
+const catalog = engine.prepareCatalog(example.structuralActivityDefinition);
 const store = engine.createMemoryStore();
 await engine.mutate(store, catalog, 'tenant',
   example.activityRecords().map(record => ({ type: 'put', record })));
 await engine.checkStore(store, catalog, 'tenant');
-const scope = { tenant: 'tenant', view: 'resourceEffective', partition: ['resource'] };
+const scope = { tenant: 'tenant', index: example.activityIndexes.resourceEffective, partition: ['resource'] };
 await store.read(tx => engine.treeAggregate(tx, catalog, scope));
 ```
 
 The serialized volatile adapter supports atomic source/index/reference/uniqueness
 updates and reactive settlement. Fixture-authorized owner-stream reads, reverse
 reference discovery and mutations now compose the same transaction boundary.
-Cross-request cursors and explicit summary publication remain unfinished. This is
-a local engine with fixture policy enforcement, not production authentication or
-persistence.
+Structural declarations, composite ordering, authored reference paths, selected
+anchor publication, owner queries and mutations are implemented. The importable
+`createEngine` lifecycle supplies volatile continuations and checked generation
+rebuilds; population, inspection and seeded workloads use the same prepared catalog.
+Storage and fixture policy remain serialized and volatile.
 
-Fresh JS-P4b.2 verification: **206 tests pass** on Node 26.12.0, including independent
-authorized-read and atomic-mutation witnesses. See [evidence](docs/evidence/2026-11-14-js-p4b2.json).
-Dependency audit reports zero vulnerabilities. MIT licensed; see [LICENSE](LICENSE).
-[.nvmrc](.nvmrc) selects the Node 24 baseline; the standard test workflow is checked
-in for CI. Hosted CI results are separate from this local verification.
-
-Development starts at R1, model-declared structural indexes. The example above
-uses the named-view API available at JS-P4b.2.
+Fresh R1–R5 verification: **272 tests pass** on Node 26.12.0, zero failed/skipped.
+See [R5 evidence](docs/evidence/2026-11-19-r5.json) for source hashes, commands,
+measured workload and limits. MIT licensed; see [LICENSE](LICENSE).
+[.nvmrc](.nvmrc) selects the Node 24 baseline. Hosted CI results are separate from
+this local verification. Durable storage, authentication, online migration and
+operational capacity retain separate gates.
 
 Read [current handoff](CONTEXT.md), the [API guide](docs/api.md),
 [architecture](docs/architecture.md), [mathematics](docs/index-mathematics.md),

@@ -13,3 +13,5 @@ export { treeReadWindow } from './read-window.mjs';
 export { prepareAuthority, resolveAuthority, permits } from './authority.mjs';
 export { readAuthorized, readIncomingAuthorized, readPointAuthorized, readAnchorSummaryAuthorized, readAuthorizedInTransaction, readAnchorSummaryAuthorizedInTransaction } from './authorized-read.mjs';
 export { mutateAuthorized } from './authorized-mutate.mjs';
+export { createEngine } from './lifecycle.mjs';
+export { inspectEngine, populateAdaptive, runSeededWorkload } from './developer-tools.mjs';

@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**R5 is the first unmet gate. R1–R4 are accepted.** This roadmap starts from `8f337cd`, which includes
+**R1–R5 are accepted locally.** Subsequent durable/service gates remain separate. This roadmap starts from `8f337cd`, which includes
 fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
 single-order-field and dedicated-access-view plan. Accept a gate only after its
 witnesses run against the implementation. The [API guide](api.md) records executable
@@ -112,7 +112,9 @@ and summary in one snapshot.
 
 ## R5 — Continuations, generation lifecycle and developer tools
 
-**Missing.** Raw windows and fixture reads already share a transaction snapshot.
+**Accepted 2026-11-19.** Fresh R5 verification: 272 tests passed on Node 26.12.0, including 27 independent lifecycle/workload witnesses. Seed20261119 exercised 64 contributors/three skewed partitions through 80 steps: 65 accepted, 15 intentional rejections/rollbacks. Source checking and generation rebuild both passed. See [R5 evidence](evidence/2026-11-19-r5.json). Cursors are process-local; generations use the same prepared catalog and preserve shared sources.
+
+Raw windows and fixture reads already share a transaction snapshot.
 Cross-request continuation requires fencing on the exact structural query, total
 position, catalog/generation, authority and relevant data state. Test payload-only
 edits, owner transfers and revocation. An unrelated edit must allow progress without

@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**Start at R5, continuations, generation lifecycle and developer tools. R1–R4 are accepted.** The implementation baseline is
+**R1–R5 are accepted and published to main.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -77,16 +77,36 @@ from visible+100 and hidden−80, both-owner transfers, revocation, tenant/budge
 limits, request detachment and joint ancestor/owner changes in one snapshot. See
 [R4 evidence](docs/evidence/2026-11-19-r4.json). R3 was published at `857890a`.
 
-Start at R5. Authorized structural reads derive compatible partitions from the
-contributor's local trusted owner header. Publication is an explicit selected-
-aggregate contract tied to a readable declaring-model anchor. Related/intermediate
-records grant no permission and require no extra Read. Trusted hosts can compose
-`readAuthorizedInTransaction` and `readAnchorSummaryAuthorizedInTransaction` in
-one read-only snapshot. Existing both-owner/final-authority mutation checks remain.
-R5 must fence cross-request positions by query/catalog/generation/authority/relevant
-source state, build/check/activate candidate generations atomically, retire after
-reads finish, and expose ordinary importable workload/inspection/population tools.
-Fixture policy is not authentication. All storage remains volatile/serialized.
+R5 accepted on 2026-11-19: **272 tests passed**, zero failed/skipped, on Node
+26.12.0, including 27 independent lifecycle/workload witnesses. Source hashes,
+commands, dataset, budgets, work, bytes and timings are in
+[R5 evidence](docs/evidence/2026-11-19-r5.json). R4 was published at `cda0b3f`.
+The ordinary `examples/workload.mjs` seed20261119 run populated64 contributors
+(hot52/warm6/cold6), executed80 steps (65 accepted/15 deliberate rejections or
+rollbacks), independently checked67 sources/192 occurrences and rebuilt generation1.
+These are small-fixture measurements, not a capacity acceptance.
+
+## Next boundary and remaining limits
+
+The requested R1–R5 sequence is complete. `createEngine` owns fixed-tenant active
+snapshot reads/writes, opaque raw/authorized continuations and rebuild/check/retire.
+One source authority and prepared catalog remain shared; only derived namespaces
+rotate. Candidate and staged state are independently checked before activation.
+Failed build/publication preserves the old active state; retirement failures report
+successful activation with pending cleanup. Context tenant mismatch rejects before
+provider/I/O. Source, authority setup and physical scan costs are explicitly metered.
+Importable `inspectEngine`, `populateAdaptive` and `runSeededWorkload` report
+actual transaction outcomes, including nonzero staged byte work on validator rollback.
+
+Storage remains serialized and volatile. Cursor handles are process-local, consumed
+on successful resume and invalid after restart/another engine/generation; unused
+handles can be released and their inventory is bounded. Rebuild currently uses the
+same catalog and rejects changed authoritative/generated source inventory. Catalog
+migration, online catch-up and durable/session restore continuations are deferred.
+All lifecycle writes should use the engine facade; raw adapter writes remain privileged
+and can bypass active-generation maintenance. Logical byte caps do not bound eager
+cloning or heap usage. Whole-source continuation witnesses are budgeted scans, not
+logarithmic queries. Fixture policy is not authentication.
 
 Later gates retain persistent KV transactions/concurrency/crash/original-receipt
 recovery; identity/session and restore fencing; credentials/key custody; durable

@@ -16,27 +16,27 @@ Use Node 24+ and `npm ci` at the repository root. There is no custom command par
 
 ```js
 const engine = await import('./src/index.mjs');
-const example = await import('./examples/activity.mjs');
-const catalog = engine.prepareCatalog(example.activityDefinition);
+const example = await import('./examples/structural.mjs');
+const catalog = engine.prepareCatalog(example.structuralActivityDefinition);
 const records = example.activityRecords();
 const store = engine.createMemoryStore();
 await engine.mutate(store, catalog, 'tenant',
   records.map(record => ({ type: 'put', record })));
 await engine.checkStore(store, catalog, 'tenant');
 // { sources: 4, trees: 5, occurrences: 9, references: 3, claims: 3 }
-const scope = { tenant: 'tenant', view: 'resourceEffective', partition: ['resource'] };
+const scope = { tenant: 'tenant', index: example.activityIndexes.resourceEffective, partition: ['resource'] };
 await store.read(async tx => ({
   first: await engine.treeSelect(tx, catalog, scope, 0),
   totals: await engine.treeAggregate(tx, catalog, scope),
   throughTwo: await engine.treeAggregate(tx, catalog, scope,
-    { upper: { value: '2' } }),
+    { upper: { value: ['2'] } }),
 }));
 await engine.mutate(store, catalog, 'tenant', [{ type: 'delete', id: 'fix' }]);
 await engine.checkStore(store, catalog, 'tenant');
 ```
 
 The example declares two source models mapping different amount fields into shared
-contracts and three named views. Effective and created views have distinct identities
+declarations and three structural indexes. Effective and created indexes have distinct identities
 and folds; three contributing records produce nine occurrences. `sourceOracle` sorts
 and folds complete source facts; it never reads maintained indexes. It also checks
 final reference targets and unique claims. This deliberate whole-source operation is
@@ -73,7 +73,7 @@ payload-only edits perform no occurrence writes. Prepared catalogs expose
 reject incompatible catalog state. Privileged transaction tree primitives assume
 caller-established catalog identity. R5 supplies explicit lifecycle opening/rebuild.
 The older named-view scalar fixtures remain regression witnesses. Reference paths,
-structural owner planning/publication, continuations and generations follow in R3–R5.
+structural owner publication and the lifecycle are described in the accepted R3–R5 contracts.
 
 ## Reference-path participation (R3)
 
@@ -632,3 +632,71 @@ read-only transaction lifetime; each operation still loads current fixture
 authority through that transaction and applies all disclosure checks. This permits
 public rows, a declared full summary and independent source-derived inspection to
 be checked in one snapshot.
+
+## Continuations, generations and developer tools (R5)
+
+`createEngine({store,catalog,tenant,limits?})` supplies one fixed-tenant lifecycle
+boundary over a serialized store. Configurable lifecycle limits are `maxSources`,
+`maxSourceBytes`, `maxSourceScannedKeys`, `maxCandidateKeys`, `maxCandidateBytes` and
+`maxCursors`, all nonnegative safe integers. Use its `read`, `transact`, `mutate`,
+`mutateAuthorized`, `readAuthorized` and `check` methods after activation.
+The prepared catalog, authoritative sources and host policy keys stay shared;
+only derived index/reference/claim/route/potential/reservation namespaces rotate.
+Generation zero adopts existing compatible state. Every operation checks catalog
+identity. Authorized contexts for another tenant reject before provider or data I/O.
+Raw adapter writes bypass this lifecycle boundary and remain privileged.
+
+`engine.window({index,partition,range?,limit},{cursor?,limits?})` returns a raw
+window, an opaque cursor or `null`, selected limits and privileged source-witness
+metrics. `engine.authorizedPage(context,{model,index,partition,range?,limit},
+{getAuthority,cursor?,onMetrics?,...readBudgets})` returns only `{records,cursor}`.
+Its partition omits the local owner role as in R4. Each request loads authority and
+source facts inside its active snapshot. Query identity includes both structural
+arrays, normalized bounds and page size. Continuations fence the complete tuple/
+source/slot position, catalog/generation, relevant source bodies and resolved
+fixture scope. Payload edits, owner transfers, revocation and query changes reject;
+unrelated partitions and hidden payload edits can allow authorized progress.
+No global source revision counter is used.
+
+Cursors are bounded random process-local handles whose positions and authority
+state remain private. Successful resume consumes the old handle; failed reads do
+not consume it. `engine.releaseCursor(handle)` frees an unused handle. Restart,
+another engine instance, tampering or reuse rejects. Old-generation handles reject
+after activation. This is volatile continuation, with no persistent/session-restore
+promise. A continuation independently enumerates source facts; its row, logical-byte
+and physical scanned-key budgets are separate from the tree and authority budgets.
+Initial and reader authority traversal share the total discovery limit. Those
+witness metrics are returned only by raw reads or privileged host callbacks.
+
+`engine.rebuild({beforeCommit?,mutation?})` pauses writers through the serialized
+transaction boundary. It reconstructs a scratch candidate from authored facts and
+the retained reservation ledger, checks it independently, verifies exact shared
+source preservation, stages the new derived namespace and independently checks
+that staged state again. Activation is atomic. Candidate/validator/publication
+failure leaves the old active generation and its cursors usable. In-flight reads
+finish before activation; old derived entries retire afterwards. A cleanup failure
+returns successful activation with `retirement.pending` and an error; call
+`engine.retire()` to retry. It never turns a known successful activation into an
+apparent rebuild failure. Rebuild currently uses the same prepared catalog;
+definition migration, changed generated sources, online catch-up, persistent crash
+recovery and durable adapter concurrency remain deferred.
+
+`inspectEngine(engine)` reports active population/generation, derived keys/bytes,
+work counters and runtime. `populateAdaptive(engine,records,options?)` changes
+future batch size from measured latency/rejection and reports each actual atomic
+batch outcome. It never silently splits a rejected batch into different semantics.
+`runSeededWorkload(engine,{seed,steps,generate,verify?,readQuery?,readLimits?,dataset?})`
+runs reproducible caller-authored plans and records accepted/rejected transactions,
+KV gets/batches/writes, scans, logical bytes, optional window visits and latency.
+`attemptedChangeBytes` sums every measured staged mutation set key/value and delete
+key, including validation rollback; `publicationDeltaBytes` encodes the final
+adapter change list and `committedChangeBytes` is zero for rejection. These are
+different measurements. Mutation latency excludes subsequent verification and
+window work. Source-witness enumeration, stream setup and AVL visits remain separate;
+encoded byte caps do not bound eager adapter cloning or heap allocation.
+
+`examples/workload.mjs` exports `runWorkloadExample()` without work on import.
+It uses the activity schemas, skewed partitions, equal tuple groups, exact values,
+constraint rejection and injected rollback, independently checks source outcomes,
+and rebuilds the final inventory. Its evidence describes this small fixture and
+machine/runtime, with no production capacity or whole-transaction logarithmic claim.

@@ -274,8 +274,7 @@ R4 binds the existing owner decision to ordinary structural indexes using the
 contributor's trusted source owner. A record reached directly, through an indexed
 list, or through reverse references must satisfy the same tenant, action and
 owner checks. Knowing the traversal path neither widens access nor requires a
-separate Read grant on a record used only as a lookup key. The shipped reverse
-reader still checks Read on the lookup target, so this is a change to that API.
+separate Read grant on a record used only as a lookup key. The accepted reverse reader validates the lookup target without an extra Read grant.
 Authority changes alter the eligible streams without rewriting business rows.
 Transfers check both owners and settle affected memberships atomically.
 
@@ -305,6 +304,16 @@ Serialization is a labeled test-adapter property, not a production global mutati
 counter or distributed acceptance. After known conflicts, reject cleanly initially;
 unknown commit outcomes require original receipt/status recovery, never blind replay
 with a new operation identity. Prototype atomic rollback is not crash durability.
+
+Accepted R5 uses a fixed-tenant engine facade and the same prepared catalog. Sources
+and host policy stay shared; only derived namespaces rotate. A serialized rebuild
+checks source-derived scratch state, preserves source records exactly, stages and
+checks the candidate namespace, then atomically activates it. Old reads drain and
+retirement follows. Cleanup errors report pending retirement after successful
+activation. Process-local opaque cursors fence query, complete position, generation,
+relevant source bodies and fixture scope, with explicitly metered source inventories.
+Definition migration and changed source outputs are not accepted by this rebuild.
+The lifecycle obligations below continue to constrain future migration/durable work.
 
 Lifecycle: `declared -> building -> checked -> active -> retired`. Initially pause
 all writers, including workers, while building a candidate generation; readers retain
