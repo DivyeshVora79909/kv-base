@@ -1,4 +1,5 @@
 import { validateRecord, projectRecord } from './catalog.mjs';
+import { loadPathSources } from './reference-path.mjs';
 import { permits } from './authority.mjs';
 import { sourceKey } from './keys.mjs';
 import { canonical, fail } from './values.mjs';
@@ -19,7 +20,8 @@ export async function discloseSource(catalog, scope, id, fetch, { model, occurre
     record = validateRecord(catalog, stored);
     if (record.tenant !== scope.tenant || record.id !== id || (model !== undefined && record.model !== model)) corrupt();
     if (occurrence) {
-      const projected = projectRecord(catalog, record).find(item => item.view === occurrence.view && item.slot === occurrence.slot);
+      const sources = await loadPathSources({get:async key=>(await fetch([key],false))[0]},catalog,scope.tenant,[record]);
+      const projected = projectRecord(catalog, record,sources).find(item => item.view === occurrence.view && item.slot === occurrence.slot);
       if (!projected || canonical(projected.partition) !== canonical(occurrence.partition)
         || canonical(projected.order) !== canonical(occurrence.order)
         || canonical(projected.contributions) !== canonical(occurrence.contributions)) corrupt();

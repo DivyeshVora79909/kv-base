@@ -5,8 +5,16 @@ const reject = (code, message) => { throw Object.assign(new Error(message), { co
 const own = (object, key) => Object.hasOwn(object, key);
 const textCompare = (left, right) => compareDomain('id', left, right);
 // Deliberately do not use projectRecord/selectValue or any writer/index state.
-function select(record, selector) {
+function select(record, selector, sources, models) {
   if (own(selector, 'constant')) return { present: true, value: selector.constant };
+  for (const hop of selector.path ?? []) {
+    const reference = models[record.model].references.find(rule=>rule.slot===hop.reference);
+    if (!own(record.data,reference.field)) return {present:false};
+    const target=sources.get(canonical([record.tenant,record.data[reference.field]]));
+    if (!target) return {present:false};
+    if (target.model!==hop.target) reject('INVALID_REFERENCE','Independent path target type');
+    record=target;
+  }
   const object = own(selector, 'field') ? record.data : record;
   const key = selector.field ?? selector.header;
   return { present: own(object, key), value: object[key] };
@@ -37,7 +45,7 @@ export function sourceOracle(prepared, records) {
     }
     for (const unique of model.uniqueness ?? []) {
       const values = unique.fields.map(selector => {
-        const selected = select(record, selector);
+        const selected = select(record, selector, sources, prepared.definition.models);
         if (!selected.present) reject('MISSING_CLAIM', `Missing claim value ${unique.slot}`);
         return selected.value;
       });
@@ -52,7 +60,7 @@ export function sourceOracle(prepared, records) {
       const contract = prepared.contracts[contractId];
       let missing = false;
       const read = (selector, domain) => {
-        const selected = select(record, selector);
+        const selected = select(record, selector, sources, prepared.definition.models);
         if (!selected.present) { missing = true; return undefined; }
         return decodeDomain(domain, selected.value);
       };

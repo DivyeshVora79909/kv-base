@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**Start at R3, reference-path participation. R1 and R2 are accepted.** The implementation baseline is
+**Start at R4, owner-constrained structural operations and publication. R1–R3 are accepted.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -63,13 +63,21 @@ and payload-only edits write no occurrences. See [R2 evidence](docs/evidence/202
 R1 was published at `506e3e4`; HTTPS Git credentials were unavailable, so verified
 trees are published through the connected GitHub API with a checked branch head.
 
-Start at R3. Structural order bindings now remain typed arrays even for singleton
-orders, and prepared catalog identity pins representation version 2. Named scalar
-fixtures remain regression coverage. Mutations, authorized reads and checkStore
-fence catalog identity; raw transaction tree primitives remain privileged. R3
-must compile finite typed scalar paths, discover untouched contributors via old/final
-edges, reconcile old/final occurrences and route their changes through settlement.
-R4 owner planning/publication and R5 continuation/generation/tools remain unmet.
+R3 accepted on 2026-11-19: **231 tests passed**, zero failed/skipped, on Node
+26.12.0. Ten independent path witnesses cover untouched contributors, tied keys,
+old/final graphs, terminal edits, absent/re-entry, repeated stages/new edges,
+managed potential dependencies while actual outputs are absent, independent full
+recomputation, and exact rollback of sources/edges/trees/routes/outputs. See
+[R3 evidence](docs/evidence/2026-11-19-r3.json) and `examples/reference-path.mjs`.
+
+Start at R4. Structural tuples (representation version2) and typed finite scalar
+paths are executable. Paths target authored topology; managed contributors can use
+those paths. Models remain private by default. R4 must derive owner partition plans
+from the contributor's local trusted owner, unify point/indexed/reverse disclosure,
+and publish explicitly selected full-anchor aggregates. R5 lifecycle, cross-request
+continuations and developer tools remain unmet. Path discovery meters point reads,
+reverse visits and physical scans separately. Full checking detects omitted reverse
+edges; no per-mutation claim of complete corruption detection is made.
 
 Later gates retain persistent KV transactions/concurrency/crash/original-receipt
 recovery; identity/session and restore fencing; credentials/key custody; durable

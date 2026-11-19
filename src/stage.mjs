@@ -2,6 +2,7 @@ import { validateRecord, projectRecord } from './catalog.mjs';
 import { canonical, decodeDomain, selectValue } from './values.mjs';
 import { sourceKey, catalogKey, incomingPrefix, incomingKey, claimKey } from './keys.mjs';
 import { treePut, treeDelete, readRoot, treeGet } from './tree.mjs';
+import { affectedPathContributors, loadPathSources } from './reference-path.mjs';
 
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
 const equal = (a, b) => canonical(a) === canonical(b);
@@ -50,13 +51,13 @@ function commandsFor(catalog, tenant, changes) {
   return commands;
 }
 
-function occurrencesBySlot(catalog, record) {
-  return new Map((record ? projectRecord(catalog, record) : []).map(o => [canonical([o.view, o.slot]), o]));
+function occurrencesBySlot(occurrences) {
+  return new Map(occurrences.map(o => [canonical([o.view, o.slot]), o]));
 }
 
-async function reconcileMemberships(tx, catalog, oldRecord, nextRecord) {
-  const old = occurrencesBySlot(catalog, oldRecord);
-  const next = occurrencesBySlot(catalog, nextRecord);
+async function reconcileMemberships(tx, catalog, oldRows, nextRows) {
+  const old = occurrencesBySlot(oldRows);
+  const next = occurrencesBySlot(nextRows);
   for (const key of new Set([...old.keys(), ...next.keys()])) {
     const a = old.get(key), b = next.get(key);
     const samePosition = a && b && equal(a.partition, b.partition) && equal(a.order, b.order);
@@ -74,9 +75,9 @@ async function reconcileMemberships(tx, catalog, oldRecord, nextRecord) {
   }
 }
 
-function membershipTransitions(catalog, oldRecord, nextRecord) {
-  const old = occurrencesBySlot(catalog, oldRecord);
-  const next = occurrencesBySlot(catalog, nextRecord);
+function membershipTransitions(oldRows, nextRows) {
+  const old = occurrencesBySlot(oldRows);
+  const next = occurrencesBySlot(nextRows);
   return [...new Set([...old.keys(), ...next.keys()])].filter(key => !old.has(key) || !next.has(key) || !equal(old.get(key), next.get(key)))
     .map(key => [old.get(key), next.get(key)]);
 }
@@ -88,6 +89,7 @@ export async function createMutation(tx, catalog, tenant) {
   if (identity === undefined) await tx.set(identityKey, catalog.identity);
   else if (identity !== catalog.identity) fail('CATALOG_MISMATCH', 'Store catalog identity differs');
   const entries = new Map();
+  const referenceWork = { pathReads: 0, reverseVisits: 0, scannedKeys: 0 };
   let state = 'open';
   function assertOpen() {
     if (state !== 'open') fail('MUTATION_CLOSED', `Mutation workspace is ${state}`);
@@ -96,28 +98,58 @@ export async function createMutation(tx, catalog, tenant) {
     assertOpen();
     state = 'staging';
     try {
-      const commands = commandsFor(catalog, tenant, changes);
+      const commands = commandsFor(catalog, tenant, changes), changed = [];
       for (const command of commands) {
         const key = sourceKey(tenant, command.id), current = await tx.get(key), next = command.record;
+        command.old = current; command.next = next;
         if (current !== undefined) {
           validateRecord(catalog, current);
           if (current.id !== command.id || current.tenant !== tenant) fail('CORRUPT_STATE', 'Source key mismatch');
         }
-        const entry = entries.get(command.id) ?? { old: current, next: current, header: current ?? next };
-        const original = entry.old;
-        for (const prior of [original, current, entry.header]) {
+        const entry = entries.get(command.id);
+        for (const prior of [entry?.old, current, entry?.header]) {
           if (prior !== undefined && next && (prior.model !== next.model || prior.createdAt !== next.createdAt)) fail('IMMUTABLE_HEADER', 'Model and createdAt are immutable');
         }
         // Parse relation shapes now; existence and claims belong to the final graph.
         if (next) relations(catalog, next);
-        const changed = current === undefined ? next !== undefined : next === undefined || !equal(current, next);
-        if (changed) { if (next) await tx.set(key, next); else await tx.delete(key); }
-        await reconcileMemberships(tx, catalog, current, next);
-        entry.next = next;
-        entry.header ??= next;
-        entries.set(command.id, entry);
+        if (current === undefined ? next !== undefined : next === undefined || !equal(current, next)) changed.push(command);
+      }
+      const affected = await affectedPathContributors(tx, catalog, tenant, changed,
+        new Map([...entries].map(([id, entry]) => [id, entry.next])), referenceWork);
+      // Ordinary no-op commands still protect/check their old memberships.
+      for (const command of commands) affected.add(command.id);
+      const originals = new Map();
+      for (const id of affected) {
+        const command = commands.find(entry => entry.id === id);
+        originals.set(id, command ? command.old : await tx.get(sourceKey(tenant, id)));
+      }
+      const oldContext = await loadPathSources(tx, catalog, tenant, [...originals.values()], referenceWork);
+      const before = new Map();
+      for (const [id, record] of originals) {
+        if (record) validateRecord(catalog, record);
+        const rows = record ? projectRecord(catalog, record, oldContext) : [];
+        before.set(id, rows);
+        if (!entries.has(id)) entries.set(id, { old: record, next: record, header: record,
+          oldOccurrences: rows, nextOccurrences: rows });
+      }
+      // All authored source writes precede path projection of the final graph.
+      for (const command of changed) {
+        const key = sourceKey(tenant, command.id);
+        if (command.next) await tx.set(key, command.next); else await tx.delete(key);
+      }
+      const finals = new Map();
+      for (const id of affected) finals.set(id, await tx.get(sourceKey(tenant, id)));
+      const finalContext = await loadPathSources(tx, catalog, tenant, [...finals.values()], referenceWork);
+      const projections = [];
+      for (const [id, record] of finals) {
+        const rows = record ? projectRecord(catalog, record, finalContext) : [];
+        await reconcileMemberships(tx, catalog, before.get(id), rows);
+        const entry = entries.get(id);
+        entry.next = record; entry.header ??= record; entry.nextOccurrences = rows;
+        projections.push({ sourceId: id, old: before.get(id), next: rows });
       }
       state = 'open';
+      return { sources: commands.map(command => ({ old: command.old, next: command.next })), projections, oldContext, finalContext };
     } catch (error) { state = 'failed'; throw error; }
   }
   async function finish({ scopes: extraScopes = [] } = {}) {
@@ -163,7 +195,7 @@ export async function createMutation(tx, catalog, tenant) {
       const scopes = new Map();
       let changedMemberships = 0;
       for (const entry of touched) {
-        const transitions = membershipTransitions(catalog, entry.old, entry.next);
+        const transitions = membershipTransitions(entry.oldOccurrences, entry.nextOccurrences);
         changedMemberships += transitions.length;
         for (const transition of transitions) for (const occurrence of transition) {
           if (!occurrence) continue;
@@ -188,7 +220,7 @@ export async function createMutation(tx, catalog, tenant) {
       // Counts describe committed old-to-final differences, not transient staging work.
       const changedSources = touched.filter(entry => entry.changed).length;
       state = 'finished';
-      return { changedSources, changedMemberships, trees: [...scopes.values()], metrics: tx.inspect() };
+      return { changedSources, changedMemberships, trees: [...scopes.values()], metrics: tx.inspect(), referenceWork };
     } catch (error) { state = 'failed'; throw error; }
   }
   return { stage, finish };

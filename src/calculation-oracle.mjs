@@ -65,13 +65,22 @@ function readShape(catalog, input, records) {
   return result;
 }
 // Flat declarations only: templates establish positions, never settled values.
-function project(catalog, record) {
+function project(catalog, record, records) {
   const result = [];
   for (const binding of catalog.definition.models[record.model].memberships ?? []) {
     const contract = declaration(catalog,binding.view);
     let missing = false;
     const select = (s, domain) => {
-      const object = own(s,'field') ? record.data : record;
+      let source=record;
+      for (const hop of s.path??[]) {
+        const reference=catalog.definition.models[source.model].references.find(rule=>rule.slot===hop.reference);
+        if (!own(source.data,reference.field)) {missing=true;return undefined;}
+        const target=records.get(source.data[reference.field]);
+        if (!target) {missing=true;return undefined;}
+        if (target.tenant!==record.tenant||target.model!==hop.target) bad('Independent path target mismatch');
+        source=target;
+      }
+      const object = own(s,'field') ? source.data : source;
       const key = s.field ?? s.header;
       if (own(s,'constant')) return decodeDomain(domain,s.constant);
       if (!own(object,key)) { missing = true; return undefined; }
@@ -97,7 +106,7 @@ function matches(catalog, read, row) {
 }
 function rangeValue(catalog, read, records) {
   const contract = catalog.views[read.view].contract, aggregate = contract.aggregates[read.aggregate];
-  const rows = [...records.values()].flatMap(record => project(catalog,record)).filter(row => matches(catalog,read,row));
+  const rows = [...records.values()].flatMap(record => project(catalog,record,records)).filter(row => matches(catalog,read,row));
   rows.sort((a,b) => compareDomain(declaration(catalog,read.view).order,a.order,b.order) || cmp(a.sourceId,b.sourceId) || cmp(a.slot,b.slot));
   return rows.reduce((value,row) => aggregate.implementation.combine(value,aggregate.implementation.lift(row.inputs[declaration(catalog,read.view).aggregates[read.aggregate].input])),aggregate.implementation.identity());
 }
@@ -161,7 +170,27 @@ export async function settlementOracle(catalog, tenant, authored, { reservations
       if (prior && (prior.model !== output.model || prior.createdAt !== output.createdAt)) bad('Reservation metadata changed');
       if (!prior) { if (outputIds.has(outputId)) bad('Output identity collision'); ledger.set(key,reservation); outputIds.add(outputId); }
       outputs.push({role:output.role,record:template,computed:[...computed]}); owner.set(outputId,id);
-      potential.push(...project(catalog,template).map(row => ({...row,producer:id})));
+      potential.push(...project(catalog,template,records).map(row => ({...row,producer:id})));
+      // Independently enumerate authored dependencies of every declared template
+      // path. This inventory does not use the writer's path/dependency helpers.
+      for(const binding of catalog.definition.models[template.model].memberships??[]) {
+        const selectors=[...binding.partition,...(Array.isArray(binding.order)?binding.order:[binding.order]),...Object.values(binding.inputs)];
+        for(const selection of selectors.filter(s=>s.path)) {
+          let source=template;
+          const register=(sourceId,selector)=>{
+            const slot='resolve:'+fingerprint([sourceId,selector]);
+            resolveReads.set(slot,{slot,kind:'field',sourceId,selector});
+          };
+          for(const hop of selection.path) {
+            const ref=catalog.definition.models[source.model].references.find(rule=>rule.slot===hop.reference);
+            if(source!==template)register(source.id,{field:ref.field});
+            if(!own(source.data,ref.field)){source=undefined;break;}
+            const targetId=source.data[ref.field];register(targetId,{header:'id'});
+            source=records.get(targetId);if(!source)break;
+          }
+          if(source)register(source.id,own(selection,'field')?{field:selection.field}:{header:selection.header});
+        }
+      }
     }
     producers.push({id,anchorId:record.id,calculation:rule.slot,parameters:shape.parameters,reads,outputs,resolveReads:[...resolveReads.values()], implementation:rule.implementation});
   }
@@ -199,7 +228,7 @@ export async function settlementOracle(catalog, tenant, authored, { reservations
       const patch = evaluated.outputs[output.role]; if (patch === null) continue;
       fields(patch,output.computed);
       const actual = validateRecord(catalog,{...output.record,data:{...output.record.data,...patch}});
-      if (canonical(topology(project(catalog,actual))) !== canonical(topology(project(catalog,output.record)))) bad('Computed patch changes topology');
+      if (canonical(topology(project(catalog,actual,records))) !== canonical(topology(project(catalog,output.record,records)))) bad('Computed patch changes topology');
       records.set(actual.id,actual); generated.push(actual);
     }
   }

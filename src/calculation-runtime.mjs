@@ -1,5 +1,6 @@
 import { validateRecord, projectRecord } from './catalog.mjs';
 import { normalizeScope } from './index-declaration.mjs';
+import { loadPathSources, pathsForModel } from './reference-path.mjs';
 import { generatedId, producerId } from './calculation-identity.mjs';
 import { canonical, fingerprint, decodeDomain, freezeDeep, fail } from './values.mjs';
 import { sourceKey } from './keys.mjs';
@@ -100,7 +101,27 @@ export async function resolveProducer(tx,catalog,tenant,anchor,rule) {
     const computed=array(output.computed);
     if (new Set(computed).size!==computed.length||computed.some(f=>typeof f!=='string'||!own(catalog.models[output.model].schema.properties,f))) bad('Invalid computed fields');
     const template=validateRecord(catalog,{id:generatedId(tenant,record.id,rule.slot,output.role),tenant,model:output.model,owner:output.owner,createdAt:output.createdAt,data:output.data});
-    projectRecord(catalog,template);
+    const sources=await loadPathSources(tx,catalog,tenant,[template]);
+    projectRecord(catalog,template,sources);
+    // A fixed template's authored path targets are also topology dependencies,
+    // including existence while the actual managed output is absent.
+    const pathReads=new Map();
+    const track=(id,selector)=>{
+      const slot='resolve:'+fingerprint([id,selector]);
+      pathReads.set(slot,{slot,kind:'field',sourceId:id,selector});
+    };
+    for(const selector of pathsForModel(catalog,template.model)) {
+      let current=template;
+      for(const hop of selector.path) {
+        const ref=catalog.models[current.model].references.find(rule=>rule.slot===hop.reference);
+        if(current!==template) track(current.id,{field:ref.field});
+        if(!own(current.data,ref.field)) {current=undefined;break;}
+        const id=current.data[ref.field];track(id,{header:'id'});
+        current=sources.get(id);if(!current)break;
+      }
+      if(current)track(current.id,own(selector,'field')?{field:selector.field}:{header:selector.header});
+    }
+    calls.push([...pathReads.values()]);
     outputs.push({role:output.role,record:template,computed:[...computed]});
   }
   const resolveReads=new Map(); for (const read of calls.flat()) resolveReads.set(read.slot,read);
@@ -133,21 +154,26 @@ export async function evaluateProducer(tx,catalog,tenant,producer,implementation
     const patch=evaluated.outputs[output.role];if (patch===null) continue;
     fields(patch,output.computed);
     const actual=validateRecord(catalog,{...output.record,data:{...output.record.data,...patch}});
-    if (canonical(topology(projectRecord(catalog,actual)))!==canonical(topology(projectRecord(catalog,output.record)))) bad('Computed patch changes topology');
+    const sources=await loadPathSources(tx,catalog,tenant,[actual,output.record]);
+    if (canonical(topology(projectRecord(catalog,actual,sources)))!==canonical(topology(projectRecord(catalog,output.record,sources)))) bad('Computed patch changes topology');
     records.push(actual);
   }
   return records;
 }
 function point(row,aggregate) {return {view:row.view,partition:row.partition,aggregate,order:row.order,sourceId:row.sourceId,slot:row.slot};}
 const equal=(a,b)=>a===undefined||b===undefined?a===b:canonical(a)===canonical(b);
-export function signalsForSource(catalog,old,next) {
+export function signalsForSource(catalog,old,next,oldRows,nextRows) {
   const fields=[],points=[],sourceId=(next??old)?.id;
   if (!sourceId) return {fields,points};
   for (const header of ['id','tenant','model','owner','createdAt']) if (!equal(old?.[header],next?.[header])) fields.push({sourceId,selector:{header}});
   const names=new Set([...Object.keys(old?.data??{}),...Object.keys(next?.data??{})]);
   for (const field of names) if (!equal(old && own(old.data,field)?old.data[field]:undefined,next && own(next.data,field)?next.data[field]:undefined)) fields.push({sourceId,selector:{field}});
-  const before=new Map((old?projectRecord(catalog,old):[]).map(r=>[canonical([r.view,r.slot]),r]));
-  const after=new Map((next?projectRecord(catalog,next):[]).map(r=>[canonical([r.view,r.slot]),r]));
+  return {fields,points:signalsForProjections(catalog,oldRows??(old?projectRecord(catalog,old):[]),nextRows??(next?projectRecord(catalog,next):[]))};
+}
+export function signalsForProjections(catalog,oldRows,nextRows) {
+  const points=[];
+  const before=new Map(oldRows.map(r=>[canonical([r.view,r.slot]),r]));
+  const after=new Map(nextRows.map(r=>[canonical([r.view,r.slot]),r]));
   for (const key of new Set([...before.keys(),...after.keys()])) {
     const a=before.get(key),b=after.get(key);
     const moved=!a||!b||!equal([a.partition,a.order],[b.partition,b.order]);
@@ -155,15 +181,15 @@ export function signalsForSource(catalog,old,next) {
       if (a) points.push(point(a,aggregate));if (b) points.push(point(b,aggregate));
     }
   }
-  return {fields,points:[...new Map(points.map(p=>[canonical(p),p])).values()]};
+  return [...new Map(points.map(p=>[canonical(p),p])).values()];
 }
-export function signalsForOutputs(catalog,outputs) {
+export function signalsForOutputs(catalog,outputs,sources=new Map()) {
   const fields=[],points=[];
   for (const output of outputs) {
     const record=output.record;
     for (const header of ['id','tenant','model','owner','createdAt']) fields.push({sourceId:record.id,selector:{header}});
     for (const field of Object.keys(catalog.models[record.model].schema.properties)) fields.push({sourceId:record.id,selector:{field}});
-    for (const row of projectRecord(catalog,record)) for (const aggregate of Object.keys(catalog.views[row.view].contract.aggregates)) points.push(point(row,aggregate));
+    for (const row of projectRecord(catalog,record,sources)) for (const aggregate of Object.keys(catalog.views[row.view].contract.aggregates)) points.push(point(row,aggregate));
   }
   return {fields,points};
 }

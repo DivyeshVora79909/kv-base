@@ -1,9 +1,10 @@
 import { canonical, fingerprint, decodeDomain, compareDomain, fail } from './values.mjs';
 import { projectRecord } from './catalog.mjs';
-import { rootKey, nodeKey, occurrenceToken, potentialOwnerKey } from './keys.mjs';
+import { rootKey, nodeKey, occurrenceToken, potentialOwnerKey, sourceKey } from './keys.mjs';
 import { treeGet, treePut, treeDelete } from './tree.mjs';
 import { normalizeRange, belowRange, aboveRange } from './range.mjs';
 import { normalizeScope } from './index-declaration.mjs';
+import { loadPathSources } from './reference-path.mjs';
 
 const check = (ok) => { if (!ok) fail('CORRUPT_STATE', 'Missing or mismatched potential entry'); };
 const equal = (a,b) => a === undefined || b === undefined ? a === b : canonical(a) === canonical(b);
@@ -15,7 +16,7 @@ function owner(value) {
   decodeDomain('id',value.producer);
   return value.producer;
 }
-function inventory(catalog,tenant,outputs) {
+function inventory(catalog,tenant,outputs,sources) {
   if(!Array.isArray(outputs))fail('INVALID_CALCULATION','Expected potential outputs');
   const roles=new Set(), ids=new Set(), occurrences=new Map();
   for(const output of outputs) {
@@ -23,7 +24,7 @@ function inventory(catalog,tenant,outputs) {
     if(roles.has(output.role)||ids.has(output.record?.id))fail('INVALID_CALCULATION','Duplicate potential role or output');
     roles.add(output.role);ids.add(output.record.id);
     if(output.record.tenant!==tenant || !catalog.models[output.record.model]?.managed)fail('INVALID_CALCULATION','Potential output must be managed in this tenant');
-    for(const projected of projectRecord(catalog,output.record)) {
+    for(const projected of projectRecord(catalog,output.record,sources)) {
       const {inputs,contributions,...o}=projected;
       o.contributions={};
       const key=canonical([o.view,o.partition,o.sourceId,o.slot]);
@@ -32,9 +33,13 @@ function inventory(catalog,tenant,outputs) {
   }
   return {ids,occurrences};
 }
-export async function replacePotential(tx,catalog,tenant,producerId,oldOutputs,newOutputs) {
+export async function outputPathSources(tx,catalog,tenant,outputs,overrides=new Map()) {
+  const keys=new Map([...overrides].map(([id,record])=>[sourceKey(tenant,id),record]));
+  return loadPathSources({get:key=>keys.has(key)?keys.get(key):tx.get(key)},catalog,tenant,outputs.map(output=>output.record));
+}
+export async function replacePotential(tx,catalog,tenant,producerId,oldOutputs,newOutputs,{oldSources=new Map()}={}) {
   decodeDomain('id',tenant);decodeDomain('id',producerId);
-  const before=inventory(catalog,tenant,oldOutputs), after=inventory(catalog,tenant,newOutputs), internal=potentialCatalog(catalog);
+  const before=inventory(catalog,tenant,oldOutputs,await outputPathSources(tx,catalog,tenant,oldOutputs,oldSources)), after=inventory(catalog,tenant,newOutputs,await outputPathSources(tx,catalog,tenant,newOutputs)), internal=potentialCatalog(catalog);
   // All guards precede writes, including no-op guards and orphan node checks.
   for(const id of before.ids)check(owner(await tx.get(potentialOwnerKey(catalog,tenant,id)))===producerId);
   for(const id of after.ids)if(!before.ids.has(id))check(await tx.get(potentialOwnerKey(catalog,tenant,id))===undefined);

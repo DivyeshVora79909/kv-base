@@ -75,6 +75,33 @@ caller-established catalog identity. R5 supplies explicit lifecycle opening/rebu
 The older named-view scalar fixtures remain regression witnesses. Reference paths,
 structural owner planning/publication, continuations and generations follow in R3–R5.
 
+## Reference-path participation (R3)
+
+A membership selector may use `{path:[{reference:'issue',target:'Issue'},
+{reference:'invoice',target:'Invoice'}], header:'id'}` or a terminal `field`.
+Preparation checks every declared scalar reference slot, explicit allowed target
+model and terminal domain. Paths are finite literal arrays. Many-valued hops and
+managed target topology reject; managed contributors may follow authored targets.
+Membership `onMissing: 'skip' | 'reject'` governs absent edges/terminal values;
+invalid present values and mismatched target types always reject.
+
+`projectRecord(catalog,record,sourcesMap?)` accepts an explicit tenant-local Map
+keyed by source ID for path dependencies. The transactional writer point-loads the
+finite dependencies, stages all source commands before projecting the final graph,
+and finds untouched contributors through old incoming entries and staged final
+edges. It retains original/final occurrences across repeated settlement stages.
+Their changes route to subscribers within the same atomic transaction. Managed
+potential templates register authored path dependencies, including target existence
+while actual outputs are absent. Hydration charges path reads to the request budget.
+The source, calculation and maintained-state checkers independently traverse source
+facts without the writer's path/projection helpers. See `examples/reference-path.mjs`.
+
+Mutation diagnostics add `referenceWork: {pathReads,reverseVisits,scannedKeys}`.
+Incoming prefix scans and attempt-local graph enumeration remain real work; no
+whole-transaction logarithmic claim follows from an AVL path. Independent full
+checking detects omitted reverse edges; every mutation does not detect every possible
+pre-existing omission. Durable graph storage and concurrency remain deferred.
+
 ## Current functions
 
 - `prepareCatalog(definition, { monoids, validators, calculations })`: compile JSON Schema and

@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**R3 is the first unmet gate. R1 and R2 are accepted.** This roadmap starts from `8f337cd`, which includes
+**R4 is the first unmet gate. R1–R3 are accepted.** This roadmap starts from `8f337cd`, which includes
 fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
 single-order-field and dedicated-access-view plan. Accept a gate only after its
 witnesses run against the implementation. The [API guide](api.md) records executable
@@ -67,7 +67,9 @@ domains and noncommutative fold order.
 
 ## R3 — Reference-path participation
 
-**Missing.** Current membership projection reads the contributing record's fields
+**Accepted 2026-11-19.** Fresh R3 verification: 231 tests passed on Node 26.12.0, including ten independent reference-path witnesses. See [R3 evidence](evidence/2026-11-19-r3.json). Finite paths target authored scalar topology; managed contributors are supported.
+
+Current membership projection reads the contributing record's fields
 and headers. Compile finite, explicitly declared scalar reference paths, including
 each hop's allowed target type and policy for missing values. Use existing typed
 forward/reverse references and the old and staged final graph to find affected

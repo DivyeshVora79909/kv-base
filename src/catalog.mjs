@@ -1,3 +1,4 @@
+import { validatePath, selectPath } from './reference-path.mjs';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { cloneData, freezeDeep, fingerprint, decodeDomain, assertJson, selectValue } from './values.mjs';
 import { standardMonoids } from './monoids.mjs';
@@ -17,8 +18,12 @@ function slots(entries, label) {
   const seen = new Set();
   for (const entry of entries) { object(entry, label); name(entry.slot, `${label} slot`); if (seen.has(entry.slot)) fail(`Duplicate ${label} slot ${entry.slot}`); seen.add(entry.slot); }
 }
-function selector(model, value, expected) {
+function selector(model, value, expected, modelDefinitions) {
   object(value, 'Selector');
+  if (own(value, 'path')) {
+    const terminal = validatePath(modelDefinitions, model, value);
+    return selector(terminal, own(value,'field') ? {field:value.field} : {header:value.header}, expected, modelDefinitions);
+  }
   const keys = Object.keys(value);
   if (keys.length !== 1 || !['field', 'header', 'constant'].includes(keys[0])) fail('Selector requires exactly one field, header or constant');
   let schema;
@@ -121,14 +126,14 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
       const view = views[membership.view]; if (!view) fail(`Unknown view ${membership.view}`);
       const contract = view.contract;
       if (!Array.isArray(membership.partition) || membership.partition.length !== contract.partition.length) fail('Wrong partition arity');
-      membership.partition.forEach((value, index) => selector(spec, value, contract.partition[index]));
+      membership.partition.forEach((value, index) => selector(spec, value, contract.partition[index], declaration.models));
       if (Array.isArray(contract.order)) {
         if (!Array.isArray(membership.order) || membership.order.length !== contract.order.length) fail('Wrong order arity');
-        membership.order.forEach((value, index) => selector(spec, value, contract.order[index]));
-      } else selector(spec, membership.order, contract.order);
+        membership.order.forEach((value, index) => selector(spec, value, contract.order[index], declaration.models));
+      } else selector(spec, membership.order, contract.order, declaration.models);
       object(membership.inputs, 'Membership inputs');
       if (Object.keys(membership.inputs).length !== Object.keys(contract.inputs).length || Object.keys(membership.inputs).some(key => !own(contract.inputs, key))) fail('Membership input mismatch');
-      for (const [key, expected] of Object.entries(contract.inputs)) selector(spec, membership.inputs[key], expected);
+      for (const [key, expected] of Object.entries(contract.inputs)) selector(spec, membership.inputs[key], expected, declaration.models);
       if (!['reject', 'skip'].includes(membership.onMissing)) fail('Membership requires onMissing policy');
     }
     models[id] = { ...spec, access: own(spec, 'access') ? spec.access : null, managed, calculations: compiledCalculations, references, uniqueness, memberships, validate };
@@ -158,7 +163,7 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
       const contract = views[order.view].contract;
       if (!Number.isSafeInteger(order.ownerPartition) || order.ownerPartition < 0
         || order.ownerPartition >= contract.partition.length || contract.partition[order.ownerPartition] !== 'id') fail('Invalid access owner partition');
-      const ownerPositions = membership.partition.flatMap((selector, index) => selector.header === 'owner' ? [index] : []);
+      const ownerPositions = membership.partition.flatMap((selector, index) => !selector.path && selector.header === 'owner' ? [index] : []);
       if (ownerPositions.length !== 1 || ownerPositions[0] !== order.ownerPartition) fail('Access partition must bind exactly one trusted source owner');
       const bindings = viewBindings.get(order.view);
       if (bindings.length !== 1 || bindings[0].modelId !== modelId || bindings[0].membership !== membership) fail('Access view must be dedicated to one model membership');
@@ -167,10 +172,12 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
     }
   }
   const representationVersion = 2;
+  const hasReferencePaths = Object.values(models).some(model => model.memberships.some(membership =>
+    [...membership.partition, ...(Array.isArray(membership.order) ? membership.order : [membership.order]), ...Object.values(membership.inputs)].some(value => value.path)));
   const identity = fingerprint({ representationVersion, declaration, monoids: usedMonoids, validators: usedValidators, ...(Object.keys(usedCalculations).length ? { calculations: usedCalculations } : {}) });
   for (const [id, view] of Object.entries(views)) view.identity = fingerprint({ catalog: identity, view: id });
   for (const index of Object.values(indexes)) index.contract = views[index.view].contract;
-  return freezeDeep({ identity, representationVersion, definition: declaration, contracts, views, models, indexes });
+  return freezeDeep({ identity, representationVersion, definition: declaration, contracts, views, models, indexes, hasReferencePaths });
 }
 
 export function validateRecord(prepared, record) {
@@ -184,12 +191,12 @@ export function validateRecord(prepared, record) {
   return cloneData(record);
 }
 
-export function projectRecord(prepared, input) {
+export function projectRecord(prepared, input, sources = new Map()) {
   const record = validateRecord(prepared, input), result = [];
   for (const membership of prepared.models[record.model].memberships) {
     const contract = prepared.views[membership.view].contract;
     let missing = false;
-    const read = (selector, expected) => { const selected = selectValue(record, selector); if (!selected.present) { missing = true; return undefined; } return decodeDomain(expected, selected.value); };
+    const read = (selector, expected) => { const selected = selectPath(prepared, record, selector, sources); if (!selected.present) { missing = true; return undefined; } return decodeDomain(expected, selected.value); };
     const partition = membership.partition.map((selector, index) => read(selector, contract.partition[index]));
     const order = Array.isArray(contract.order) ? membership.order.map((value, index) => read(value, contract.order[index])) : read(membership.order, contract.order), inputs = Object.create(null);
     for (const [key, expected] of Object.entries(contract.inputs)) inputs[key] = read(membership.inputs[key], expected);

@@ -4,8 +4,8 @@ import { projectRecord, validateRecord } from './catalog.mjs';
 import { producerId, generatedId } from './calculation-identity.mjs';
 import { sourceKey, producerKey, reservationKey, potentialOwnerKey } from './keys.mjs';
 import { affectedSubscribers, replaceRoutes, readRoutes } from './routes.mjs';
-import { replacePotential, potentialPredecessors } from './potential.mjs';
-import { resolveProducer, evaluateProducer, registrationsFor, signalsForSource, signalsForOutputs, validateFieldSelector } from './calculation-runtime.mjs';
+import { replacePotential, potentialPredecessors, outputPathSources } from './potential.mjs';
+import { resolveProducer, evaluateProducer, registrationsFor, signalsForSource, signalsForOutputs, signalsForProjections, validateFieldSelector } from './calculation-runtime.mjs';
 
 const equal=(a,b)=>a===undefined||b===undefined?a===b:canonical(a)===canonical(b);
 const check=ok=>{if(!ok)fail('CORRUPT_STATE','Missing or mismatched calculation state');};
@@ -33,7 +33,7 @@ export async function settle(tx,catalog,tenant,changes,options={}) {
     if(id.startsWith('@next/derived/')||await tx.get(reservationKey(catalog,tenant,id))!==undefined||catalog.models[old?.model]?.managed||catalog.models[change?.record?.model]?.managed)fail('INVALID_CALCULATION','Client cannot mutate managed identities or models');
     commands.push({id,old});
   }
-  await mutation.stage(changes);
+  const authoredStage=await mutation.stage(changes);
   const changed=[];
   for(const command of commands) {
     command.next=await tx.get(sourceKey(tenant,command.id));
@@ -78,7 +78,8 @@ export async function settle(tx,catalog,tenant,changes,options={}) {
       ownAnchors.set(id,{anchorId:record.id,calculation:rule.slot,expectedOld:!!command.old});
     }
   }
-  const authoredSignals=merge(changed.map(c=>signalsForSource(catalog,c.old,c.next)));
+  const authoredSignals=merge([...changed.map(c=>signalsForSource(catalog,c.old,c.next,[],[])),
+    ...authoredStage.projections.map(p=>({fields:[],points:signalsForProjections(catalog,p.old,p.next)}))]);
   const initial=await route(authoredSignals);
   for(const match of initial.matches) {add(match.subscriber);if(match.slot.startsWith('resolve:'))resolve.add(match.subscriber);}
   // Resolve every dirty shape before changing any routing or potential inventory.
@@ -91,9 +92,13 @@ export async function settle(tx,catalog,tenant,changes,options={}) {
     else finalStates.set(id,old);
   }
   const initialIds=[...pending];
-  const potentialSignals=id=>signalsForOutputs(catalog,[...(oldStates.get(id)?.outputs??[]),...(finalStates.get(id)?.outputs??[])]);
+  const potentialSignals=async id=>{
+    const old=oldStates.get(id)?.outputs??[],next=finalStates.get(id)?.outputs??[];
+    return merge([signalsForOutputs(catalog,old,await outputPathSources(tx,catalog,tenant,old,authoredStage.oldContext)),
+      signalsForOutputs(catalog,next,await outputPathSources(tx,catalog,tenant,next))]);
+  };
   // Old descriptors must observe both old and newly declared output positions.
-  for(const id of initialIds)for(const subscriber of (await route(potentialSignals(id))).subscribers)add(subscriber);
+  for(const id of initialIds)for(const subscriber of (await route(await potentialSignals(id))).subscribers)add(subscriber);
   for(const id of initialIds) {
     const old=oldStates.get(id),next=finalStates.get(id);
     for(const output of next?.outputs??[]) {
@@ -106,7 +111,7 @@ export async function settle(tx,catalog,tenant,changes,options={}) {
       }
     }
     await replaceRoutes(tx,catalog,tenant,id,next?registrationsFor(next):[]);
-    await replacePotential(tx,catalog,tenant,id,old?.outputs??[],next?.outputs??[]);
+    await replacePotential(tx,catalog,tenant,id,old?.outputs??[],next?.outputs??[],{oldSources:authoredStage.oldContext});
     if(next)await tx.set(producerKey(catalog,tenant,id),next);else await tx.delete(producerKey(catalog,tenant,id));
   }
   // Close all final causal descendants, including unchanged shapes and zero outputs.
@@ -115,9 +120,9 @@ export async function settle(tx,catalog,tenant,changes,options={}) {
     if(!finalStates.has(id)) {
       const old=await load(id);finalStates.set(id,old);
       await replaceRoutes(tx,catalog,tenant,id,registrationsFor(old));
-      await replacePotential(tx,catalog,tenant,id,old.outputs,old.outputs);
+      await replacePotential(tx,catalog,tenant,id,old.outputs,old.outputs,{oldSources:authoredStage.oldContext});
     }
-    for(const subscriber of (await route(potentialSignals(id))).subscribers)add(subscriber);
+    for(const subscriber of (await route(await potentialSignals(id))).subscribers)add(subscriber);
   }
   const active=[...pending].filter(id=>finalStates.get(id)).sort();
   const deps=new Map(active.map(id=>[id,new Set()])),successors=new Map(active.map(id=>[id,new Set()]));
@@ -154,7 +159,8 @@ export async function settle(tx,catalog,tenant,changes,options={}) {
     const rule=catalog.models[anchor.model].calculations.find(r=>r.slot===p.calculation);check(rule);
     const records=await evaluateProducer(tx,catalog,tenant,p,rule.implementation);metrics.evaluated++;
     if(records.length)await mutation.stage(records.map(record=>({type:'put',record})));
-    for(const output of p.outputs)for(const row of projectRecord(catalog,output.record)) {
+    const sources=await outputPathSources(tx,catalog,tenant,p.outputs);
+    for(const output of p.outputs)for(const row of projectRecord(catalog,output.record,sources)) {
       const scope={tenant,view:row.view,partition:row.partition};scopes.set(canonical(scope),scope);
     }
   }

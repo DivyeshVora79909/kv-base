@@ -55,14 +55,23 @@ async function checkForest(tx,catalog,tenant,occurrences,label) {
 }
 
 // Flat declaration projection, including missing input participation, independent of projectRecord.
-function potentialOccurrences(catalog,record) {
+function potentialOccurrences(catalog,record,sources) {
   const result = [];
   for (const binding of catalog.definition.models[record.model].memberships ?? []) {
     const declaration = catalog.definition.contracts[catalog.definition.views[binding.view].contract];
     let missing = false;
     const select = (selector,domain) => {
       if (Object.hasOwn(selector,'constant')) return decodeDomain(domain,selector.constant);
-      const object = Object.hasOwn(selector,'field') ? record.data : record, key = selector.field ?? selector.header;
+      let source=record;
+      for(const hop of selector.path??[]) {
+        const reference=catalog.definition.models[source.model].references.find(rule=>rule.slot===hop.reference);
+        if (!Object.hasOwn(source.data,reference.field)) {missing=true;return undefined;}
+        const target=sources.get(source.data[reference.field]);
+        if (!target) {missing=true;return undefined;}
+        ensure(target.tenant===record.tenant&&target.model===hop.target,'Potential path target');
+        source=target;
+      }
+      const object = Object.hasOwn(selector,'field') ? source.data : source, key = selector.field ?? selector.header;
       if (!Object.hasOwn(object,key)) { missing = true; return undefined; }
       return decodeDomain(domain,object[key]);
     };
@@ -102,7 +111,7 @@ export async function checkReactive(tx,catalog,tenant,actualRecords) {
   const potentials = [];
   for (const p of expected.producers) for (const output of p.outputs) {
     expectedPrivate.set(potentialOwnerKey(catalog,tenant,output.record.id),{producer:p.id});
-    potentials.push(...potentialOccurrences(catalog,output.record));
+    potentials.push(...potentialOccurrences(catalog,output.record,new Map(actualRecords.map(record=>[record.id,record]))));
   }
   inventory(privateRows,expectedPrivate,'Reactive private');
   const potentialCatalog = {identity:fingerprint(['internal-potential-avl-v1',catalog.identity]),views:Object.fromEntries(Object.entries(catalog.views).map(([name,v]) => [name,{contract:{partition:v.contract.partition,order:v.contract.order,aggregates:{}}}]))};
