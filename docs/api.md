@@ -406,6 +406,34 @@ The engine forwards receipt options and maps replay checking to the active gener
 queued operations. Process-kill witnesses prove local SQLite recovery, not power-loss,
 distributed concurrency, storage-device guarantees or automatic retries.
 
+`openFoundationDbStore({clusterFile, prefix, timeoutMs: 4500,
+transactionBytes: 10000000, readOnly: false})` is the primary durable target. An
+explicit binary tuple namespace isolates KV rows, original receipts and codec
+metadata. One Node service may execute multiple native transactions concurrently:
+the adapter advertises `serializable: true`, `serialized: false`. Normal point and
+batch reads protect present/missing keys. Scans add a native conflict range over
+the complete requested interval, including keys beyond a limited page or a
+zero-output request. Touched overlays preserve the same ordering/value API.
+
+Application callbacks run once. A definite native conflict returns
+`STORAGE_CONFLICT`; keys/values/transaction size and timeout controls return
+`STORAGE_LIMIT` when FoundationDB confirms no commit. Native maybe-committed errors
+and failed post-commit acknowledgement return `COMMIT_UNKNOWN`. Use the same
+receipt ID/digest for recovery. Only internal idempotent codec initialization may
+retry a definite conflict; client mutation callbacks never silently retry.
+Encoded physical keys include namespace overhead and must fit 10000 bytes; V8
+values and receipts must fit 100000 bytes. The native transaction limit includes
+write and conflict-range overhead. Engine budgets remain additional limits.
+
+Fresh D1F verification uses the Node `foundationdb` 2.0.1 N-API binding, compatible
+API720, and native client/server7.3.81. The host supplies `libfdb_c.so` and an explicit
+cluster file; the SDK loads lazily, so memory/SQLite need no installed native library.
+`close()` drains active callbacks and closes that database handle. Tests select an
+owned target with `KV_BASE_FDB_CLUSTER_FILE` and library search configuration.
+Without a selected cluster, the real-target witnesses report skipped acceptance.
+The local single-server witnesses do not certify replicated/server failures,
+disk/power loss, native commit-response fault injection or general capacity.
+
 The checker covers the requested tenant and current catalog generation, not unknown
 inactive generations or lifecycle activation. Raw mutation/read functions are trusted
 internal APIs: tenant partitioning is not caller authentication or authorization.

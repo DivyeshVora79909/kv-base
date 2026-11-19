@@ -33,14 +33,14 @@ function exact(input,allowed,required=allowed){
 }
 const text=(a,b)=>Buffer.compare(Buffer.from(a),Buffer.from(b));
 
-/** A serialized lifecycle boundary around the prepared engine. Sources,
+/** A serializable lifecycle boundary around the prepared engine. Sources,
  * catalog identity and host policy keys remain shared. Only derived KV namespaces
  * are generation-specific. Raw writes bypassing this boundary can break integrity.
  */
 export function createEngine(configuration){
   fields(configuration,['store','catalog','tenant','limits'],['store','catalog','tenant']);
   const {store,catalog,tenant,limits:configured={}}=configuration;
-  if(!store?.capabilities?.serialized||typeof store.read!=='function'||typeof store.transact!=='function'||!catalog?.models)fail('INVALID_ENGINE','A serialized store and prepared catalog are required');
+  if(!(store?.capabilities?.serialized||store?.capabilities?.serializable)||typeof store.read!=='function'||typeof store.transact!=='function'||!catalog?.models)fail('INVALID_ENGINE','A serializable transactional store and prepared catalog are required');
   decodeDomain('id',tenant);const caps=limits(configured),tag=canonical(tenant);
   const activeKey=`engine/v1/${tag}/${catalog.identity}/active`,generationBase=`generation/v1/${tag}/${catalog.identity}/`;
   const ids=[catalog.identity,fingerprint(['internal-potential-avl-v1',catalog.identity]),fingerprint(['internal-route-interval-avl-v1',catalog.identity])];

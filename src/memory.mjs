@@ -11,7 +11,7 @@ export function createMemoryStore() {
   let queue = Promise.resolve();
   const identity = Symbol('memory store');
   const capabilities = Object.freeze({
-    serialized: true, volatile: true, durable: false,
+    serialized: true, serializable: true, volatile: true, durable: false,
     scans: 'nonindexed: O(N + T + M log M) work, O(N + T) scratch keys',
     guards: 'retained point, absence and range evidence; serialization supplies isolation',
   });

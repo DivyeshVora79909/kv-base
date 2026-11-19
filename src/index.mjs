@@ -2,6 +2,7 @@ export { prepareCatalog, validateRecord, projectRecord } from './catalog.mjs';
 export { indexId, resolveIndex } from './index-declaration.mjs';
 export { createMemoryStore } from './memory.mjs';
 export { openSqliteStore } from './sqlite.mjs';
+export { openFoundationDbStore } from './foundationdb.mjs';
 export { sourceOracle } from './oracle.mjs';
 export { settlementOracle, generatedId } from './calculation-oracle.mjs';
 export { standardMonoids } from './monoids.mjs';

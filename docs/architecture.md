@@ -305,7 +305,7 @@ counter or distributed acceptance. After known conflicts, reject cleanly initial
 unknown commit outcomes require original receipt/status recovery, never blind replay
 with a new operation identity. Prototype atomic rollback is not crash durability.
 
-D1 selects embedded SQLite for the single-writer Linux target. A writable adapter
+D1 accepts optional embedded SQLite. A writable adapter
 reserves the writer before every callback, protects absence/ranges for its entire
 snapshot, and publishes touched KV rows plus the original receipt in one transaction.
 Contention rejects before callback execution without blocking the event loop. The
@@ -314,10 +314,23 @@ nor these witnesses certify power-loss or multi-host storage. Readonly inspectio
 handles provide snapshots without claiming writer exclusion. Codec identity rejects
 unknown persisted formats; source/catalog evolution requires separate acceptance.
 
+D1F selects FoundationDB as the durable primary. One writable Node service means
+one service owns write ingress; it does not mean one globally serialized transaction.
+The adapter protects normal point/absence reads and explicit complete range predicates
+with native conflict ranges, then publishes data and original receipts atomically.
+Disjoint engine source mutations can overlap and both commit. Conflicting work aborts
+definitively without replaying application callbacks. Startup metadata initialization
+precedes ingress, avoiding an accidental shared write on the disjoint path.
+Native transactions retain their finite lifetime/key/value/byte limits. One local
+FoundationDB process is the conformance target, not replicated-failure acceptance.
+
 Accepted R5 uses a fixed-tenant engine facade and the same prepared catalog. Sources
-and host policy stay shared; only derived namespaces rotate. A serialized rebuild
+and host policy stay shared; only derived namespaces rotate. A serializable rebuild
 checks source-derived scratch state, preserves source records exactly, stages and
-checks the candidate namespace, then atomically activates it. Old reads drain and
+checks the candidate namespace, then atomically activates it. Optimistic adapters
+protect active-generation metadata and the complete source inventory; conflicting
+publication aborts. Writers are paused for the operational rebuild procedure.
+Old reads drain and
 retirement follows. Cleanup errors report pending retirement after successful
 activation. Process-local opaque cursors fence query, complete position, generation,
 relevant source bodies and fixture scope, with explicitly metered source inventories.

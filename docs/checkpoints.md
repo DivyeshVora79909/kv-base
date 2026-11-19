@@ -1,7 +1,9 @@
 # Checkpoints and acceptance gates
 
-**D2a is the first unmet gate. R1–R5 and D1 are accepted.** The next sequence
-targets a self-hosted Linux service with one writable instance. This roadmap starts from `8f337cd`, which includes
+**D2a is the first unmet gate. R1–R5, optional SQLite D1 and D1F are accepted.**
+The durable primary is FoundationDB. One Node service accepts writes and may
+execute disjoint transactions concurrently through the ordered transactional KV
+adapter. SQLite remains an optional serialized adapter. This roadmap starts from `8f337cd`, which includes
 fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
 single-order-field and dedicated-access-view plan. Accept a gate only after its
 witnesses run against the implementation. The [API guide](api.md) records executable
@@ -140,6 +142,8 @@ adapter/engine witnesses. Real child-process writer conflicts and SIGKILL before
 and after SQL commit protect source/receipt atomicity. Reopened structural paths,
 reactive recomputation, generation activation rollback and active-generation replay
 checking passed. See [D1 evidence](evidence/2026-11-19-d1.json).
+This accepts the optional SQLite adapter; it does not select SQLite as the durable
+primary or satisfy the FoundationDB concurrent-service gate below.
 
 Use the same engine over an embedded persistent adapter with explicit serialized
 transactions, protected present/absent/range reads, exact detached values and
@@ -156,9 +160,43 @@ process death before publication and after committed-but-unacknowledged receipt.
 Mismatch/replay protection returns the original result once. No distributed or
 optimistic-concurrency claim follows from serialized SQLite locking.
 
+## D1F — FoundationDB and one concurrent writable service
+
+**Accepted 2026-11-19.** 343 tests passed, zero failed/skipped, on Node26.12.0
+after `npm ci`. FoundationDB binding2.0.1/API720 with native client/server7.3.81
+passed30 adapter/engine tests and13 single-service tests. Disjoint source mutations
+overlap and both commit; all ten shared conflict schedules reject stale publication;
+lost committed HTTP response recovers its original receipt once across service
+SIGKILL/reopen. See [D1F evidence](evidence/2026-11-19-d1f.json).
+
+Reused cases: exact detached values/batches, Unicode/NUL ordering, paged overlays,
+callback/hook rollback, no-op guards and original receipts; predecessor schedules
+for present/absent batches, absence claims, empty-range insertions, range deletions,
+limited pages, no-op dependencies, references and revocation. Added fresh Node
+single-service concurrency/response-loss witnesses, zero-limit protection, native
+physical limits, binary namespace/format isolation and close/callback lifetime.
+
+FoundationDB is the first durable deployment target. Keep the same engine behind
+the ordered transactional KV boundary. One Node service accepts writes, with
+multiple simultaneous transactions rather than a service-wide writer queue.
+Normal reads protect exact points/absence and the entire requested range, including
+keys beyond a limited page. Conflict aborts and unknown outcomes are distinct;
+callbacks do not silently retry. Original receipts publish with all state once.
+
+**Exit.** Reuse the shared Node byte/value/overlay/rollback/receipt cases and semantic
+schedules from the predecessor conformance harness. On a fresh FoundationDB target,
+prove disjoint points both commit; present/absent batch reads, insertion/deletion
+phantoms, limited ranges, no-op dependencies, references and revocation protect
+stale publication. Verify engine reopen, structural paths, reactive state and
+generation lifecycle through the same adapter. Through one writable Node service,
+exercise disjoint commits and those conflict schedules; drop a committed response
+and recover the original receipt without applying twice. Record actual Node/native
+client/server versions, physical limits and target ownership. One local FoundationDB
+server is not replicated-failure or power-loss acceptance. D2a follows this gate.
+
 ## D2 — Credential custody, identity and session fencing
 
-D2a follows D1: real credentials and opaque sessions use external encryption/HMAC
+D2a follows D1F: real credentials and opaque sessions use external encryption/HMAC
 keys, one existing authority graph, bounded authentication attempts, expiry,
 revocation and an external restore incarnation. Actor/tenant comes from validated
 sessions; initial and final authority checks remain in the transaction. Original

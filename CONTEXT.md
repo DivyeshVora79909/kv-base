@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**R1–R5 and D1 are accepted; D2a is next.** The implementation baseline is
+**R1–R5, optional SQLite D1 and primary FoundationDB D1F are accepted; D2a is next.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -92,9 +92,20 @@ D1 accepted on 2026-11-19: **287 tests passed**, zero failed/skipped, Node 26.12
 Fifteen independent SQLite/engine witnesses cover exact persistence, rollback,
 absence/empty range protection, multiple handles/processes, SIGKILL before/after
 commit, original receipts, structural paths, reactive settlement and generations.
-See [D1 evidence](docs/evidence/2026-11-19-d1.json). Selected deployment is self-hosted
-Linux with one writable instance. SQLite WAL/FULL uses immediate serialization and
+See [D1 evidence](docs/evidence/2026-11-19-d1.json). SQLite WAL/FULL uses immediate serialization and
 definite busy rejection; power-loss and multi-host guarantees are not accepted.
+
+D1F accepted on 2026-11-19: **343 tests passed**, zero failed/skipped, Node26.12.0
+after fresh `npm ci` (zero vulnerabilities; packaged N-API prebuild used). FoundationDB
+is the first durable target; SQLite remains optional. One Node service accepts writes
+with concurrent native serializable transactions. Thirty FDB adapter/engine witnesses
+and thirteen single-service tests pass, including disjoint actual source mutations,
+ten shared point/absence/range/reference/revocation conflict schedules, native physical
+limits, process kills and original receipt recovery after a dropped committed response.
+See [D1F evidence](docs/evidence/2026-11-19-d1f.json). Binding2.0.1/API720 uses official
+native client/server7.3.81. The owned test cluster is one local process/coordinator;
+replication/server-failure, native commit-ack injection, disk/power loss and capacity
+are unverified. Raw conformance HTTP routes are test fixtures, not production APIs.
 
 The requested R1–R5 sequence is complete. `createEngine` owns fixed-tenant active
 snapshot reads/writes, opaque raw/authorized continuations and rebuild/check/retire.
@@ -106,7 +117,8 @@ provider/I/O. Source, authority setup and physical scan costs are explicitly met
 Importable `inspectEngine`, `populateAdaptive` and `runSeededWorkload` report
 actual transaction outcomes, including nonzero staged byte work on validator rollback.
 
-The memory adapter remains volatile; SQLite now supplies durable serialized storage.
+The memory adapter remains volatile; optional SQLite supplies durable serialization;
+FoundationDB supplies concurrent serializable durable storage behind the same engine.
 Cursor handles are process-local, consumed
 on successful resume and invalid after restart/another engine/generation; unused
 handles can be released and their inventory is bounded. Rebuild currently uses the
