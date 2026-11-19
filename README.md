@@ -35,14 +35,32 @@ Structural declarations, composite ordering, authored reference paths, selected
 anchor publication, owner queries and mutations are implemented. The importable
 `createEngine` lifecycle supplies volatile continuations and checked generation
 rebuilds; population, inspection and seeded workloads use the same prepared catalog.
-Storage and fixture policy remain serialized and volatile.
+FoundationDB is the durable primary behind the same ordered transactional adapter.
+One Node service accepts writes through concurrent serializable transactions;
+SQLite remains an optional serialized adapter. Encrypted identity sessions,
+privately delivered email/phone proofs and durable provider effects compose the
+same catalog and owner policy. The memory adapter remains volatile.
 
-Fresh R1–R5 verification: **272 tests pass** on Node 26.12.0, zero failed/skipped.
-See [R5 evidence](docs/evidence/2026-11-19-r5.json) for source hashes, commands,
-measured workload and limits. MIT licensed; see [LICENSE](LICENSE).
+Private local object grants, streaming upload/finalize/download and fixed
+authenticated HTTP routes are implemented. The [pipeline example](examples/pipeline.mjs)
+shares one ordinary catalog for ledger calculations, typed object attachments and
+private provider delivery. Fresh D4 verification passed481 tests, zero failed/skipped;
+backup/restore and Linux release are the next checkpoint.
+
+Fresh R1–R5 engine and D1/D1F/D2/D3 durable verification is recorded in the
+[handoff](CONTEXT.md) and [checkpoint evidence](docs/checkpoints.md). Primary-target
+tests require an owned FoundationDB cluster and its native client library:
+
+```sh
+KV_BASE_FDB_CLUSTER_FILE=/path/to/fdb.cluster npm test
+```
+
+Set the native library search path if `libfdb_c.so` is not installed system-wide.
+Absent a selected cluster, real-target tests skip and do not establish acceptance.
+MIT licensed; see [LICENSE](LICENSE).
 [.nvmrc](.nvmrc) selects the Node 24 baseline. Hosted CI results are separate from
-this local verification. Durable storage, authentication, online migration and
-operational capacity retain separate gates.
+this local verification. Live provider delivery, replicated failure, power loss,
+online migration and larger operational capacity retain separate evidence.
 
 Read [current handoff](CONTEXT.md), the [API guide](docs/api.md),
 [architecture](docs/architecture.md), [mathematics](docs/index-mathematics.md),

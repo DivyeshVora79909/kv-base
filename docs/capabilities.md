@@ -117,9 +117,9 @@ single canonical model requirement by themselves.
 Fresh local D1/D1F/D2a/D3 evidence now covers optional SQLite, primary concurrent
 FoundationDB, encrypted opaque identity sessions and durable provider effects.
 These results use the current Node sources, not the predecessor counts. D2b now
-adds delivered email/phone proofs with bounded one-use issuance. Authenticated
-object/service pipeline and selected Linux
-backup/restore/release remain subsequent gates. Live provider certification,
+adds delivered email/phone proofs with bounded one-use issuance. D4 now accepts
+the authenticated object/service pipeline with fresh subprocess and HTTP witnesses.
+Selected Linux backup/restore/release remains D5. Live provider certification,
 replicated failure, power loss and larger capacity remain unaccepted.
 
 The original JS-P1–JS-P5 plan below records which obligations the prototype took

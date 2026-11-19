@@ -1,0 +1,16 @@
+import { definition } from '../helpers/objects-fixture.mjs';
+import { prepareCatalog } from '../../src/catalog.mjs';
+import { createEngine } from '../../src/lifecycle.mjs';
+import { createIdentity } from '../../src/identity.mjs';
+import { createKeyring } from '../../src/keyring.mjs';
+import { openFoundationDbStore } from '../../src/foundationdb.mjs';
+import { openObjectStore } from '../../src/objects.mjs';
+const configuration = JSON.parse(process.argv[2]);
+const store = await openFoundationDbStore({ clusterFile: process.env.KV_BASE_FDB_CLUSTER_FILE, prefix: configuration.prefix }), engine = createEngine({ store, catalog: prepareCatalog(definition), tenant: 't' });
+const keyring = createKeyring({ keys: { old: Buffer.alloc(32, 7) }, activeKey: 'old' }), getRestoreFence = () => 'incarnation-A', clock = () => configuration.time;
+const identity = createIdentity({ engine, keyring, getRestoreFence, clock, passwordPolicy: { N: 1024, minBytes: 12, sessionMs: 1_000_000 } });
+const objects = await openObjectStore({ engine, identity, keyring, getRestoreFence, clock, directory: configuration.directory, model: 'Object', limits: { grantMs: 1000, uploadMs: 500, maxReconcile: 3 }, onPhase: async name => { if (name === configuration.phase) { process.send({ phase: name }); await new Promise(() => {}); } } });
+if (configuration.phase === 'upload:staged-file') await objects.upload(configuration.token, configuration.uploadToken, (async function* () { yield Buffer.from(configuration.bytes, 'base64'); })());
+else if (configuration.phase === 'cleanup:deleted') await objects.reconcile();
+else await objects.finalize(configuration.token, { operationId: 'crash-finalize', id: 'blob', uploadToken: configuration.uploadToken });
+await store.close();

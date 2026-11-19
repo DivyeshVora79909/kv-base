@@ -687,7 +687,8 @@ be checked in one snapshot.
 ## Continuations, generations and developer tools (R5)
 
 `createEngine({store,catalog,tenant,limits?})` supplies one fixed-tenant lifecycle
-boundary over a serialized store. Configurable lifecycle limits are `maxSources`,
+boundary over a serialized or explicitly serializable store. Configurable lifecycle
+limits are `maxSources`,
 `maxSourceBytes`, `maxSourceScannedKeys`, `maxCandidateKeys`, `maxCandidateBytes` and
 `maxCursors`, all nonnegative safe integers. Use its `read`, `transact`, `mutate`,
 `mutateAuthorized`, `readAuthorized` and `check` methods after activation.
@@ -976,3 +977,73 @@ schema or grant DSL. Public handlers must apply request byte limits and expose o
 the two sanitized results; contacts, private delivery state, effect IDs, key custody,
 worker callbacks and raw transactions remain host imports. Logical limits do not
 establish whole-process memory, live-provider delivery or deployment capacity.
+
+## Local objects and fixed authenticated HTTP (D4)
+
+`objectModel()` supplies an ordinary Object source declaration; merge it with domain
+and effect models before preparing the one catalog. Its fields are
+`{state:'pending'|'ready',bytes,sha256}`, with exact safe integer byte sizes up to
+256MiB, a lowercase SHA256 and no additional fields. Optional typed attachments
+require explicit Object Use when added or retargeted. Reference deletion policy
+still applies; remove attachments before tombstoning a referenced Object.
+
+`await openObjectStore({engine,identity,keyring,getRestoreFence,directory,model,
+clock?,limits?,onPhase?})` opens private absolute `stages/` and `objects/`
+directories. It requires durable storage and matching tenant identity. Defaults are
+16MiB per object, five-minute grant,30s upload,4 concurrent uploads,8 attempts and
+100 reconciliation rows. `onPhase` is a privileged fault/observation callback.
+Only server-selected random names enter paths. Source records and opaque lifecycle
+metadata commit together; files are streamed, hashed, fsynced and reconciled outside
+transactions. File/source checking derives expected ready bytes from source facts.
+
+The dedicated APIs are `begin(token,{operationId,id,owner,bytes,sha256})`,
+`upload(token,uploadToken,asyncByteStream)`,
+`finalize(token,{operationId,id,uploadToken})`,
+`remove(token,{operationId,id})`, `transfer(token,{operationId,id,owner})`,
+`status(token,id)` and `download(token,id)`. Begin returns an opaque upload grant,
+bound to exact issuing session, incarnation, owner, size, digest and expiry. Upload
+persists bounded attempt evidence; finalize persists intent before file promotion,
+then current authority, ready source and original result commit atomically. Original
+finalize recovery cannot select another grant/version. Downloads require current
+Read and return `{bytes,sha256,stream}`. Transfers require both owners; pending
+transfers abort old grants. Tombstones commit with source deletion, while cleanup
+preserves later versions. Original begin recovery rechecks session and Update.
+
+Privileged `reconcile({maxJobs?,after?})` returns bounded progress and an opaque
+internal row cursor. It completes valid finalizations and cleans aborted/tombstoned
+versions. Unsupported/corrupt bytes cannot activate. `checkFiles({maxFiles?,
+maxBytes?,maxSources?,maxRows?})` checks complete source/private-row/file identity,
+hashes ready/staged files and detects concurrent inventory changes; defaults are
+10000 files/sources/rows and256MiB total file bytes. `inspectFiles()` remains private.
+These scans and per-download hashing are proportional work, not logarithmic queries.
+
+`createService({engine,identity,logins,publicModels,writableModels?,objects?,
+operations?,...limits})` exposes fixed HTTP handlers. Host usernames map to existing
+actors; all other authenticated routes derive actor/tenant from live Bearer tokens.
+Writable models are a public-model subset and exclude Object lifecycle models.
+The trusted host supplies operations as functions or `{authenticated,handle}`;
+authenticated extensions receive a validated bearer and must own final transactional
+authority checks. Anonymous proof begin/complete handlers map usernames themselves.
+No client supplies an actor, tenant, authority provider, secret key, transport or
+raw engine command. Generic mutation sets trusted tenant/creation time/default owner.
+
+| Route | Request / result |
+| --- | --- |
+| `GET /health` | Sanitized status only |
+| `POST /v1/login` | `{username,password,operationId}` → opaque session |
+| `POST /v1/logout`, `/v1/password` | Existing identity inputs; Bearer required |
+| `POST /v1/mutate` | `{operationId,changes}`; puts accept only id/model/owner?/data |
+| `POST /v1/query` | `{kind,query,model?,cursor?}`; kind point/index/page/incoming/summary |
+| `POST /v1/objects/begin`, `/finalize`, `/remove`, `/transfer` | Dedicated object inputs above |
+| `PUT /v1/objects/upload` | Bearer, `X-Upload-Grant`, octet-stream bytes |
+| `GET /v1/objects/:id`, `/:id/data` | Current-authority metadata or streamed bytes |
+
+Query contracts are the existing authorized contracts; only a page accepts a cursor.
+Summary output contains solely declared published aggregates. JSON routes default to
+256KiB input,4MiB output,100 page/change items and32 active requests. Upload/download
+defaults16MiB; request/body/download deadlines default30s. Strict UTF8/JSON and
+field validation reject malformed input, query strings and browser Origin. Errors
+contain a sanitized code; hidden IDs, secrets, counters, ranks and raw diagnostics
+are not wire fields. `listen({host,port})` defaults loopback/ephemeral and `close()`
+stops admission and drains admitted requests. TLS/proxy and browser integration are
+operator deployment choices. Logical byte limits do not prove a heap/capacity bound.

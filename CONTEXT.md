@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a, D2b and D3 are accepted; D4 is next.** The implementation baseline is
+**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a, D2b, D3 and D4 are accepted; D5 is next.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -164,8 +164,20 @@ published at `919e63d`; its54 focused effects/identity/keyring checks passed.
 Contacts, delivery principal and providers remain operator supplied. Proof admission
 returns no code; live email/SMS acceptance is unverified.
 
-Next gates retain object lifecycle/full pipeline;
-release/bootstrap, operational capacity and selected deployment. None is supplied by
+D4 accepted on 2026-11-19: **481 tests passed**, zero failed/skipped, Node26.12.0.
+Forty-seven new witnesses cover29 objects/schema/config,17 authorized HTTP and one
+shared-catalog pipeline. Durable grants/finalize/tombstones, exact hashes, owner and
+session transfers/revocation, stalled JSON/upload/download deadlines, bounded output,
+private-route denial and real object/service SIGKILL schedules pass. The pipeline
+delivers proof→issues session→reads visible+100/full20→uploads/attaches/downloads
+bytes→rejects attached deletion→detaches/tombstones/cleans. All use
+`examples/pipeline.mjs` and one catalog. See [D4 evidence](docs/evidence/2026-11-19-d4.json).
+D2b was published at `0d6b466`; its16 post-commit checks passed. Object downloads
+hash full bytes; file/source checking and reconciliation are bounded scans, not
+logarithmic queries. HTTP TLS/remote host remain operator configuration.
+
+Next gates retain release/bootstrap, complete backup/restore, measured local workload
+and selected deployment. None is supplied by
 native files or adapters in this repository. Full accounting, recurrence, temporal
 wakeups, live feeds, frontend, online migration and reactive rank windows are deferred.
 No persisted Rust-format compatibility or automatic database migration is promised.

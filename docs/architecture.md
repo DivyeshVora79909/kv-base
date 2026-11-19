@@ -394,6 +394,24 @@ then commits one-use proof consumption with sealed original session issuance.
 Failed original or recovery guesses consume the same bounded allowance. Delivery
 does not grant authority: each session still uses the current owner graph.
 
+D4 separates public Object source facts from private file/version/grant evidence,
+using the same catalog and source mutation path. A file can be staged/promoted before
+ready publication; durable finalize intent and current issuing-session authority
+control activation. Tombstones and source removal commit together, then cleanup
+targets the immutable version. Pending transfers abort grants; ready transfers
+retain bytes while both owner scopes are checked. Public generic mutations cannot
+bypass this lifecycle. Full checking compares source-derived size/digest/mappings
+with the complete private filesystem and detects concurrent changes. Filesystem
+hashing, reconciliation and protected scans are metered proportional work.
+
+The HTTP service exposes fixed host routes, current Bearer authority and selected
+publication contracts, with finite input/output/admission/time limits. A trusted
+model allowlist governs reads and a smaller authored allowlist governs generic
+writes. Anonymous proof endpoints are explicit host composition. Secret keys,
+context, transports, worker controls, raw transactions and inspection stay imports.
+Private error details and reader counters are never response fields. The service
+uses concurrent FoundationDB transactions; it adds no global write queue.
+
 Public surface should represent real capabilities: prepare catalog, transact/read,
 source-derived checking and the R5 lifecycle, population and workload tools.
 Use the same prepared structural catalog for those tools and future RPC handlers. Internal balancing/secret/worker helpers are not remotely callable.

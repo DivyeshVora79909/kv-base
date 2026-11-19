@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**D4 is the first unmet gate. R1–R5, optional SQLite D1, D1F, D2a, D2b and D3 are accepted.**
+**D5 is the first unmet gate. R1–R5, optional SQLite D1, D1F, D2a, D2b, D3 and D4 are accepted.**
 The durable primary is FoundationDB. One Node service accepts writes and may
 execute disjoint transactions concurrently through the ordered transactional KV
 adapter. SQLite remains an optional serialized adapter. This roadmap starts from `8f337cd`, which includes
@@ -249,6 +249,16 @@ Cancellation, retries, admission and credential changes preserve original eviden
 Fresh fake transports prove protocol semantics, not live-provider certification.
 
 ## D4 — Objects, authenticated service and full pipeline
+
+**Accepted 2026-11-19.** 481 tests passed, zero failed/skipped, Node26.12.0.
+Forty-seven fresh witnesses cover29 object/schema/config tests,17 authenticated HTTP
+tests and one shared-catalog full pipeline. Real SIGKILL covers object stage/intent/
+promotion/activation/cleanup and HTTP before/after authorized mutation commit.
+Independent file hashes, source checking, delivery ledger, hidden balance20 and
+bounded/stalled request/download schedules pass. Generic Object lifecycle writes
+are excluded from public mutation routes. See [D4 evidence](evidence/2026-11-19-d4.json).
+Backup/restore/release remains D5; live provider and remote deployment acceptance
+are separate.
 
 Use ordinary Node imports and HTTP routes over the same prepared catalog. Private
 upload grants bind owner, session/incarnation, expiry, size and digest; filenames
