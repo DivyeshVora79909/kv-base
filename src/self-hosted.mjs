@@ -1,7 +1,7 @@
 import { constants } from 'node:fs';
 import { AsyncLocalStorage } from 'node:async_hooks';
 const contexts = new AsyncLocalStorage();
-import { open, rename, rm } from 'node:fs/promises';
+import { open, link, rm } from 'node:fs/promises';
 import { isAbsolute, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { prepareCatalog } from './catalog.mjs';
@@ -27,11 +27,11 @@ function deployment(value) {
   for (const key of ['backupId', 'restoreOperationId']) if (value[key] !== undefined) decodeDomain('id', value[key]); if (value.backupDigest !== undefined && (typeof value.backupDigest !== 'string' || !/^[a-f0-9]{64}$/.test(value.backupDigest))) fail('INVALID_DEPLOYMENT', 'Invalid backup identity');
   if (value.previousIncarnations !== undefined && (!Array.isArray(value.previousIncarnations) || value.previousIncarnations.length > 128 || value.previousIncarnations.some(incarnation => decodeDomain('id', incarnation) === value.incarnation) || new Set(value.previousIncarnations).size !== value.previousIncarnations.length)) fail('INVALID_DEPLOYMENT', 'Bounded distinct previous incarnations required'); return cloneData(value);
 }
-async function readJson(path, maxBytes = 65536) {
+async function readJson(path, maxBytes = 65536, publicationLink = false) {
   const file = await open(absolute(path), constants.O_RDONLY | constants.O_NOFOLLOW);
-  try { const stat = await file.stat(); if (!stat.isFile() || stat.nlink !== 1 || stat.size > maxBytes || stat.mode & 0o077) fail('INVALID_DEPLOYMENT', 'Private bounded operator file required'); return JSON.parse((await file.readFile()).toString('utf8')); } finally { await file.close(); }
+  try { const stat = await file.stat(); if (!stat.isFile() || stat.nlink !== 1 && !(publicationLink && stat.nlink === 2) || stat.size > maxBytes || stat.mode & 0o077) fail('INVALID_DEPLOYMENT', 'Private bounded operator file required'); return JSON.parse((await file.readFile()).toString('utf8')); } finally { await file.close(); }
 }
-export async function readDeployment(path) { return deployment(await readJson(path)); }
+export async function readDeployment(path) { return deployment(await readJson(path, 65536, true)); }
 export async function readKeyringFile(path) {
   const value = await readJson(path); fields(value, ['version', 'activeKey', 'keys']); if (value.version !== '1') fail('INVALID_KEYRING', 'Unsupported operator keyring');
   fields(value.keys, Object.keys(value.keys ?? {})); const keys = Object.create(null);
@@ -39,22 +39,27 @@ export async function readKeyringFile(path) {
   createKeyring({ activeKey: value.activeKey, keys }); return { activeKey: value.activeKey, keys };
 }
 export async function writeDeployment({ deploymentFile, descriptor } = {}) {
-  deploymentFile = absolute(deploymentFile); descriptor = deployment(descriptor); const staging = `${deploymentFile}.staging-${randomUUID()}`; let created = false;
+  deploymentFile = absolute(deploymentFile); descriptor = deployment(descriptor); const staging = `${deploymentFile}.staging-${randomUUID()}`; let created = false, published = false;
   try {
     try { await readDeployment(deploymentFile); fail('DEPLOYMENT_EXISTS', 'Deployment descriptor already exists'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const file = await open(staging, 'wx', 0o600); created = true; try { await file.writeFile(JSON.stringify(descriptor)); await file.sync(); } finally { await file.close(); }
-    await rename(staging, deploymentFile); created = false; const parent = await open(dirname(deploymentFile), constants.O_RDONLY | constants.O_DIRECTORY); try { await parent.sync(); } finally { await parent.close(); } return descriptor;
-  } finally { if (created) await rm(staging, { force: true }); }
+    try { await link(staging, deploymentFile); } catch (cause) { if (cause.code === 'EEXIST') fail('DEPLOYMENT_EXISTS', 'Deployment descriptor already exists'); throw cause; }
+    published = true; await rm(staging); created = false; const parent = await open(dirname(deploymentFile), constants.O_RDONLY | constants.O_DIRECTORY); try { await parent.sync(); } finally { await parent.close(); } return descriptor;
+  } catch (cause) { if (published) throw Object.assign(new Error('Deployment published but acknowledgement lost', { cause }), { code: 'COMMIT_UNKNOWN', descriptor }); throw cause; }
+  finally { if (created) await rm(staging, { force: true }).catch(() => {}); }
 }
 
 /** Trusted Linux runtime. Candidate open does not listen or run workers. Public
  * routes use this one prepared catalog and operator-enrolled username mapping. */
 export async function openSelfHosted({ descriptor, deploymentFile, definition, catalog: prepared, keys, activeKey, keyring: suppliedKeyring, keyringFile, logins, contacts, channels, providers,
   deliveryActor = 'admin', deliveryContext: suppliedDeliveryContext, publicModels = ['Ledger', 'Entry', 'Object'], objectModel = 'Object', clock = Date.now,
-  passwordPolicy, proofPolicy, objectLimits, engineLimits, serviceLimits = {}, workerLimits = {}, onError = () => {}, applyEffect, onBootstrapPhase = async () => {}, storage: suppliedStorage } = {}) {
+  passwordPolicy, proofPolicy, objectLimits, objectCheckLimits = {}, engineLimits, serviceLimits = {}, workerLimits = {}, onError = () => {}, applyEffect, onBootstrapPhase = async () => {}, storage: suppliedStorage } = {}) {
   if (process.platform !== 'linux') fail('INVALID_DEPLOYMENT', 'Selected self-hosted target is Linux');
   fields(serviceLimits, ['maxBodyBytes', 'maxResponseBytes', 'maxActive', 'maxPageSize', 'requestTimeoutMs', 'maxUploadBytes', 'maxDownloadBytes', 'writableModels'], []);
   fields(workerLimits, ['workerId', 'leaseMs'], []);
+  fields(objectCheckLimits, ['maxFiles', 'maxBytes', 'maxSources', 'maxRows'], []);
+  if (!Object.values(objectCheckLimits).every(value => Number.isSafeInteger(value) && value > 0)) fail('INVALID_DEPLOYMENT', 'Finite positive object check limits required');
+  objectCheckLimits = Object.freeze(cloneData(objectCheckLimits));
   if (prepared && definition || [keys, suppliedKeyring, keyringFile].filter(value => value !== undefined).length !== 1) fail('INVALID_DEPLOYMENT', 'One catalog and one external custody source required');
   descriptor = deployment(descriptor ?? await readDeployment(deploymentFile)); if (descriptor.previousIncarnations) Object.freeze(descriptor.previousIncarnations); Object.freeze(descriptor); const catalog = prepared ?? prepareCatalog(definition);
   if (catalog.identity !== descriptor.catalogIdentity || typeof clock !== 'function' || typeof onBootstrapPhase !== 'function' || !providers || !logins) fail('INVALID_DEPLOYMENT', 'Fixed catalog, runtime and enrolled login mapping required');
@@ -62,7 +67,7 @@ export async function openSelfHosted({ descriptor, deploymentFile, definition, c
   const deliveryContext = suppliedDeliveryContext ?? { tenant: descriptor.tenant, actor: deliveryActor }; fields(deliveryContext, ['tenant', 'actor']); if (deliveryContext.tenant !== descriptor.tenant) fail('INVALID_DEPLOYMENT', 'Delivery scope differs');
   const keyring = suppliedKeyring ?? createKeyring({ keys, activeKey }), storage = suppliedStorage ?? await openFoundationDbStore({ clusterFile: descriptor.clusterFile, prefix: descriptor.prefix });
   if (storage.location?.adapter !== 'foundationdb' || storage.location.clusterFile !== descriptor.clusterFile || storage.location.prefix !== descriptor.prefix) { if (!suppliedStorage) await storage.close(); fail('INVALID_DEPLOYMENT', 'Storage must bind the selected FoundationDB target'); }
-  let service, timer, closing = false, closed = false, draining = false, serving = false, starting = false, closePromise, pausePromise, startPromise, quiescePromise, maintenance;
+  let service, timer, workerPoll, closing = false, closed = false, draining = false, serving = false, starting = false, closePromise, pausePromise, startPromise, quiescePromise, maintenance;
   const work = new Set(), maintenanceWork = new Set(), token = Symbol('runtime admission');
   function track(callback, mode) {
     const context = { token, mode, active: true }, tasks = mode === 'maintenance' ? maintenanceWork : work;
@@ -121,7 +126,7 @@ export async function openSelfHosted({ descriptor, deploymentFile, definition, c
       for (const credential of request.providerCredentials) await custody.storeRevision(tx, deliveryContext, credential);
       await tx.set(claimKey, { ...claim, phase: 'complete' }); return { bootstrapped: true, catalogIdentity: catalog.identity, actors: request.credentials.length, sources: request.sources.length, providerCredentials: request.providerCredentials.length };
     }, { receipt: { id: operationKey(request.operationId), digest }, beforeCommit: getRestoreFence, afterCommit: () => onBootstrapPhase('seeded') });
-    await engine.check(); await objects.checkFiles(); return result;
+    await engine.check(); await objects.checkFiles(objectCheckLimits); return result;
   }
   async function health() {
     if (closed || closing || draining) return { status: 'stopped' };
@@ -159,11 +164,15 @@ export async function openSelfHosted({ descriptor, deploymentFile, definition, c
     starting = true;
     startPromise = admit(async () => {
       try {
-        await getRestoreFence(); if ((await health()).status !== 'ready') fail('IDENTITY_UNINITIALIZED', 'Bootstrap must complete before service start'); await engine.check(); await objects.checkFiles();
+        await getRestoreFence(); if ((await health()).status !== 'ready') fail('IDENTITY_UNINITIALIZED', 'Bootstrap must complete before service start'); await engine.check(); await objects.checkFiles(objectCheckLimits);
         if (closing || draining || closed) fail('SERVICE_CLOSED', 'Startup lost admission');
-        service = createService({ engine: safeEngine, identity: safeIdentity, objects: safeObjects, logins, publicModels, operations, getHealth: admittedHealth, clock, onError, ...serviceLimits });
+        service = createService({ engine: safeEngine, identity: safeIdentity, objects: safeObjects, logins, publicModels, operations, getHealth: admittedHealth, admitRequest: callback => admit(callback), clock, onError, ...serviceLimits });
         const address = await service.listen({ host, port }); if (closing || draining || closed) { await service.close(); fail('SERVICE_CLOSED', 'Startup lost admission'); } serving = true;
-        if (workerIntervalMs !== 0) { timer = setInterval(() => { if (!work.size && !draining) void drainEffects({ maxJobs }).catch(error => { try { onError({ code: error.code ?? 'WORKER_ERROR' }); } catch {} }); }, workerIntervalMs); timer.unref(); }
+        if (workerIntervalMs !== 0) { timer = setInterval(() => {
+          if (!workerPoll && !draining && !closing) {
+            workerPoll = drainEffects({ maxJobs }).catch(error => { try { onError({ code: error.code ?? 'WORKER_ERROR' }); } catch {} }).finally(() => { workerPoll = undefined; });
+          }
+        }, workerIntervalMs); timer.unref(); }
         return { ...address, url: 'http://' + (address.host.includes(':') ? '[' + address.host + ']' : address.host) + ':' + address.port };
       } finally { starting = false; }
     }); return startPromise;

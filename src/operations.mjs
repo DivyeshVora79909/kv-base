@@ -78,15 +78,18 @@ export async function writeBackup({ runtime, objectRoot, directory: target, keyr
       await privateWrite(join(staging, 'manifest.json'), json); await syncDirectory(staging);
       if (after) await after({ phase: 'staged', directory: staging, manifest });
       try { await lstat(target); fail('BACKUP_TARGET_EXISTS', 'Backup destination already exists'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-      await rename(staging, target); created = false; await syncDirectory(dirname(target));
-      if(after)try{await after({phase:'published',directory:target,manifest});}catch(cause){throw Object.assign(new Error('Backup published but acknowledgement lost',{cause}),{code:'COMMIT_UNKNOWN',backupId,directory:target});}
+      await rename(staging, target); created = false;
+      try {
+        await syncDirectory(dirname(target));
+        if (after) await after({ phase: 'published', directory: target, manifest });
+      } catch (cause) { throw Object.assign(new Error('Backup published but acknowledgement lost', { cause }), { code: 'COMMIT_UNKNOWN', backupId, directory: target }); }
       return { directory: target, backupId, digest: hash(canonical(signed)), checkpointBytes: encoded.length, files: files.length, fileBytes: files.reduce((sum, file) => sum + file.bytes, 0) };
     } finally { if (created) await rm(staging, { recursive: true, force: true }); }
   });
 }
-async function readPrivate(path, maximum) {
+async function readPrivate(path, maximum, publicationLink = false) {
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-  try { const stat = await file.stat(); if (!stat.isFile() || stat.nlink !== 1 || stat.size > maximum) fail('BACKUP_LIMIT', 'Invalid or oversized backup artifact'); return await file.readFile(); } finally { await file.close(); }
+  try { const stat = await file.stat(); if (!stat.isFile() || stat.nlink !== 1 && !(publicationLink && stat.nlink === 2) || stat.size > maximum) fail('BACKUP_LIMIT', 'Invalid or oversized backup artifact'); return await file.readFile(); } finally { await file.close(); }
 }
 /** Authentication precedes V8 decoding; custody keys are not part of backups. */
 export async function readBackup({ directory: target, keyring, limits: inputLimits } = {}) {
@@ -142,7 +145,7 @@ export async function activateRestoration({ handle, deploymentFile, operationId,
   deploymentFile = absolute(deploymentFile); operationId = decodeDomain('id', operationId);
   if(activations.has(deploymentFile))fail('RESTORE_BUSY','Another activation owns this deployment');const lock=Symbol('activation');activations.set(deploymentFile,lock);
   try{
-  let prior; try { prior = JSON.parse((await readPrivate(deploymentFile, 1024 * 1024)).toString('utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  let prior; try { prior = JSON.parse((await readPrivate(deploymentFile, 1024 * 1024, true)).toString('utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (prior?.restoreOperationId === operationId) { if (prior.backupDigest !== held.descriptor.backupDigest) fail('RESTORE_OPERATION_MISMATCH', 'Restore identity belongs to another backup'); return prior; }
   await stopPrevious();
   return await held.runtime.quiesce(async()=>{
@@ -151,8 +154,11 @@ export async function activateRestoration({ handle, deploymentFile, operationId,
   const descriptor = { ...prior, ...held.descriptor, restoreOperationId: operationId }, staging = `${deploymentFile}.staging-${randomUUID()}`; let created = false;
   try {
     await privateWrite(staging, Buffer.from(JSON.stringify(descriptor))); created = true;
-    if (after) await after({ phase: 'beforeActivation', descriptor }); await rename(staging, deploymentFile); created = false; await syncDirectory(dirname(deploymentFile));
-    if (after) try { await after({ phase: 'afterActivation', descriptor }); } catch (cause) { const error = Object.assign(new Error('Restoration published but acknowledgement lost', { cause }), { code: 'COMMIT_UNKNOWN', operationId }); throw error; }
+    if (after) await after({ phase: 'beforeActivation', descriptor }); await rename(staging, deploymentFile); created = false;
+    try {
+      await syncDirectory(dirname(deploymentFile));
+      if (after) await after({ phase: 'afterActivation', descriptor });
+    } catch (cause) { throw Object.assign(new Error('Restoration published but acknowledgement lost', { cause }), { code: 'COMMIT_UNKNOWN', operationId }); }
     return descriptor;
   } finally { if (created) await rm(staging, { force: true }); }
   });

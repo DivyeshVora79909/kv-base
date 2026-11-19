@@ -53,7 +53,7 @@ export function createIdentityProofs(configuration) {
   async function inspect(tx, proofId, incarnation, allowExpired = false) {
     const row = await tx.get(proofKey(proofId)); if (!row) denied();
     fields(row, ['version', 'tenant', 'actor', 'channel', 'keyId', 'fence', 'credentialRevision', 'contactDigest', 'issuedAt', 'expiresAt', 'digest', 'attempts', 'delivery', 'state', 'effectId', 'providerOperationId']);
-    if (row.version !== 'proof-1' || row.tenant !== tenant || !['email', 'phone'].includes(row.channel) || !['pending', 'delivered'].includes(row.delivery) || !['open', 'consumed', 'locked'].includes(row.state) || !natural(row.attempts) || row.attempts > policy.maxAttempts || integer(row.issuedAt) < 0n || integer(row.expiresAt) <= integer(row.issuedAt)) fail('CORRUPT_PROOF', 'Invalid proof state');
+    if (row.version !== 'proof-1' || row.tenant !== tenant || !['email', 'phone'].includes(row.channel) || !['pending', 'delivered'].includes(row.delivery) || !['open', 'consumed', 'locked'].includes(row.state) || !natural(row.attempts) || integer(row.issuedAt) < 0n || integer(row.expiresAt) <= integer(row.issuedAt)) fail('CORRUPT_PROOF', 'Invalid proof state');
     if (row.fence !== incarnation || !allowExpired && integer(row.expiresAt) <= BigInt(now())) denied();
     const actor = await identity.inspectActorInTransaction(tx, row.actor), contact = contacts[row.actor]?.[row.channel];
     if (actor.tenant !== tenant || actor.credentialRevision !== row.credentialRevision || !contact || !sameDigest(contactDigest(row, contact), row.contactDigest)) denied();
@@ -70,7 +70,10 @@ export function createIdentityProofs(configuration) {
     const result = await engine.transact(async tx => {
       const actor = await identity.inspectActorInTransaction(tx, request.actor); if (actor.tenant !== tenant) fail('FORBIDDEN', 'Proof actor tenant differs');
       const time = now(), previousRate = await tx.get(rateKey(request.actor));
-      if (previousRate !== undefined) { fields(previousRate, ['fence', 'windowStart', 'count']); if (!natural(previousRate.windowStart) || !natural(previousRate.count) || previousRate.count > policy.maxStarts) fail('CORRUPT_PROOF', 'Invalid proof admission'); }
+      if (previousRate !== undefined) {
+        try { fields(previousRate, ['fence', 'windowStart', 'count']); id(previousRate.fence); if (!natural(previousRate.windowStart) || !natural(previousRate.count)) fail('CORRUPT_PROOF', 'Invalid proof admission'); }
+        catch { fail('CORRUPT_PROOF', 'Invalid proof admission'); }
+      }
       const rate = previousRate?.fence === incarnation && time - previousRate.windowStart < policy.startWindowMs ? previousRate : { fence: incarnation, windowStart: time, count: 0 };
       if (rate.count >= policy.maxStarts) fail('AUTH_WORK_LIMIT', 'Proof admission budget exhausted');
       const expiresAt = time + policy.expiryMs; if (!natural(expiresAt)) fail('INVALID_PROOF', 'Proof deadline overflow');

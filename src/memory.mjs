@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { isDeepStrictEqual } from 'node:util';
 import { copyKvData as copy, checkKvKey as keyCheck, compareKvKeys as compare } from './kv-data.mjs';
+import { sameKvData } from './values.mjs';
 
 const context = new AsyncLocalStorage();
 const fail = (code, message) => Object.assign(new Error(message), { code });
@@ -97,7 +97,7 @@ export function createMemoryStore() {
         const changes = [];
         for (const [key, entry] of overlay) {
           if (entry.exists) {
-            if (!base.has(key) || !isDeepStrictEqual(base.get(key), entry.value)) changes.push({ type: 'set', key, value: entry.value });
+            if (!base.has(key) || !sameKvData(base.get(key), entry.value)) changes.push({ type: 'set', key, value: entry.value });
           } else if (base.has(key)) changes.push({ type: 'delete', key });
         }
         if (options?.beforeCommit !== undefined) await options.beforeCommit({ changes: copy(changes) });

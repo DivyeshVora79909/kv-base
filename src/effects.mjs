@@ -102,12 +102,12 @@ export function createCredentialCustody({catalog,keyring,getAuthority,clock=Date
   }
   async function resolveForRecovery(tx,effect){
     const attempt=await load(tx,catalog,effect.tenant,effect.data.attemptId,'EffectAttempt');
-    if(!attempt||attempt.data.effectId!==effect.id||attempt.data.providerOperationId!==effect.data.providerOperationId||attempt.data.requestDigest!==effect.data.requestDigest||attempt.data.revision!==effect.data.credentialRevision)fail('CORRUPT_STATE','Recovery requires the exact durable start proof');
+    if(!attempt||attempt.data.effectId!==effect.id||attempt.data.credentialId!==effect.data.credentialId||attempt.data.revisionId!==effect.data.revisionId||attempt.data.providerOperationId!==effect.data.providerOperationId||attempt.data.requestDigest!==effect.data.requestDigest||attempt.data.revision!==effect.data.credentialRevision||effect.data.providerOperationId!==fingerprint(['external-effect',effect.tenant,effect.id])||effect.data.revisionId!==effectRevisionId(effect.data.credentialId,effect.data.credentialRevision))fail('CORRUPT_STATE','Recovery requires the exact durable start proof');
     const version=await load(tx,catalog,effect.tenant,effect.data.revisionId,'CredentialRevision');
     if(!version||version.data.credentialId!==effect.data.credentialId||version.data.revision!==attempt.data.revision||version.data.provider!==effect.data.provider)fail('CORRUPT_STATE','Recovery credential identity differs');
     return {envelope:version.data.envelope,binding:binding(effect.tenant,'provider-credential',version.data.credentialId,version.data.revision)};
   }
-  function open(sealed){const {secret}=keyring.open(sealed.envelope,sealed.binding);return Buffer.from(secret,'utf8');}
+  function open(sealed){const value=keyring.open(sealed.envelope,sealed.binding);if(!value||typeof value.secret!=='string'||!value.secret.length)fail('INVALID_CREDENTIAL','Provider secret must be nonempty text');return Buffer.from(value.secret,'utf8');}
   const sealRequest=(tenant,id,revision,value)=>keyring.seal(value,binding(tenant,'effect-request',id,revision));
   const openRequest=effect=>keyring.open(effect.data.requestEnvelope,binding(effect.tenant,'effect-request',effect.id,effect.data.credentialRevision));
   const requestDigest=(context,input,keyId=keyring.activeKey)=>keyring.digest([input.provider,input.protocolVersion,input.operation,input.request,...(input.incarnation===undefined?[]:[input.incarnation])],binding(context.tenant,'effect-request-digest',input.id,input.credentialRevision),keyId);
@@ -133,6 +133,7 @@ export async function acceptEffectInTransaction(tx,catalog,context,input,{custod
 export function createEffectWorker({engine,custody,providers,workerId='worker',clock=Date.now,leaseMs=30000,apply}={}){
   if(!engine?.transact||!custody?.resolveForStart||!positive(leaseMs)||typeof workerId!=='string'||!workerId.length||apply!==undefined&&typeof apply!=='function')fail('INVALID_EFFECT','Invalid effect worker');
   const {catalog,tenant}=engine;
+  const failedLeases=new WeakMap(),rememberFailure=(error,token)=>{if(error&&typeof error==='object')failedLeases.set(error,token);return error;};
   const get=(tx,id,model='Effect')=>load(tx,catalog,tenant,id,model);
   const save=(tx,records)=>mutateInTransaction(tx,catalog,tenant,records.map(put));
   const owns=(effect,token)=>effect.id===token.effectId&&effect.data.epoch===token.epoch&&effect.data.leaseOwner===token.workerId&&effect.data.leaseIncarnation===token.incarnation;
@@ -192,33 +193,56 @@ export function createEffectWorker({engine,custody,providers,workerId='worker',c
       return {effectId:id,error:error.code??'ERROR'};
     }
     if(started.replayed)return {effectId:id,state:'started',recoveryRequired:true};
-    const provider=configured(providers,started.effect);let secret,result;
+    let secret;
     try{
-      secret=custody.open(started.credential);let preflight;
-      const restoring=needsReservation(started.effect,token.incarnation);
-      if(restoring||provider.capabilities?.providerFence){
-        preflight=restoring?(qualified(provider)?await provider.reserveRestore({operationId:started.effect.data.providerOperationId,secret,fence:token.epoch,incarnation:token.incarnation,expectedIncarnations:await predecessors(started.effect)}):{status:'unknown',reason:'restored operation lacks incarnation reservation'}):provider.lookup?await provider.lookup({operationId:started.effect.data.providerOperationId,secret,fence:token.epoch,incarnation:token.incarnation}):{status:'unknown',reason:'provider fence has no lookup'};
-        if(restoring&&(!preflight.reserved||preflight.incarnation!==token.incarnation||preflight.fence===undefined||BigInt(preflight.fence)<=BigInt(token.epoch)))preflight={status:'unknown',reason:'restore reservation evidence missing'};
-        if(preflight.status==='absent'&&(preflight.fence===undefined||BigInt(preflight.fence)<BigInt(token.epoch)))preflight={status:'unknown',reason:'original operation absence lacks exact external fence'};
-        if(restoring||preflight.status!=='absent'||BigInt(preflight.fence)>BigInt(token.epoch))result=preflight;
-      }
-      if(!result){result=await provider.send({operationId:started.effect.data.providerOperationId,request:cloneData(started.request),secret,fence:token.epoch,incarnation:token.incarnation});if(preflight?.fence!==undefined)result={...result,fence:preflight.fence,...(preflight.incarnation===undefined?{}:{incarnation:preflight.incarnation})};}
-    }
-    catch{result={status:'unknown',reason:'provider outcome unavailable'};}finally{secret?.fill(0);}
-    const recorded=await recordResult(token,started.attemptId,result);if(recorded.current&&recorded.state==='succeeded')await applyResult(id);return {effectId:id,...recorded};
+      const provider=configured(providers,started.effect);if(!provider)fail('UNSUPPORTED_EFFECT','Dispatch provider configuration changed');
+      secret=custody.open(started.credential);const restoring=needsReservation(started.effect,token.incarnation),expectedIncarnations=restoring?await predecessors(started.effect):undefined,request=cloneData(started.request);let result;
+      try{
+        let preflight;
+        if(restoring||provider.capabilities?.providerFence){
+          preflight=restoring?(qualified(provider)?await provider.reserveRestore({operationId:started.effect.data.providerOperationId,secret,fence:token.epoch,incarnation:token.incarnation,expectedIncarnations}):{status:'unknown',reason:'restored operation lacks incarnation reservation'}):provider.lookup?await provider.lookup({operationId:started.effect.data.providerOperationId,secret,fence:token.epoch,incarnation:token.incarnation}):{status:'unknown',reason:'provider fence has no lookup'};
+          if(restoring&&(!preflight.reserved||preflight.incarnation!==token.incarnation||preflight.fence===undefined||BigInt(preflight.fence)<=BigInt(token.epoch)))preflight={status:'unknown',reason:'restore reservation evidence missing'};
+          if(preflight.status==='absent'&&(preflight.fence===undefined||BigInt(preflight.fence)<BigInt(token.epoch)))preflight={status:'unknown',reason:'original operation absence lacks exact external fence'};
+          if(restoring||preflight.status!=='absent'||BigInt(preflight.fence)>BigInt(token.epoch))result=preflight;
+        }
+        if(!result){result=await provider.send({operationId:started.effect.data.providerOperationId,request,secret,fence:token.epoch,incarnation:token.incarnation});if(preflight?.fence!==undefined)result={...result,fence:preflight.fence,...(preflight.incarnation===undefined?{}:{incarnation:preflight.incarnation})};}
+      }catch{result={status:'unknown',reason:'provider outcome unavailable'};}finally{secret.fill(0);}
+      const recorded=await recordResult(token,started.attemptId,result);if(recorded.current&&recorded.state==='succeeded')await applyResult(id);return {effectId:id,...recorded};
+    }catch(error){throw rememberFailure(error,token);}finally{secret?.fill(0);}
   }
   async function reconcile(id){
     const token=await claim(id,true);if(!token.claimed)return token;
-    const effect=await engine.read(tx=>get(tx,id)),provider=configured(providers,effect);let secret,result;
-    try{const sealed=await engine.read(tx=>custody.resolveForRecovery(tx,effect));secret=custody.open(sealed);const restoring=needsReservation(effect,token.incarnation);result=restoring?(qualified(provider)?await provider.reserveRestore({operationId:effect.data.providerOperationId,secret,fence:token.epoch,incarnation:token.incarnation,expectedIncarnations:await predecessors(effect)}):{status:'unknown',reason:'restored operation lacks incarnation reservation'}):provider.lookup?await provider.lookup({operationId:effect.data.providerOperationId,secret,fence:token.epoch,incarnation:token.incarnation}):{status:'unknown',reason:'provider has no authoritative lookup'};if(restoring&&(!result.reserved||result.incarnation!==token.incarnation||result.fence===undefined||BigInt(result.fence)<=BigInt(token.epoch)))result={status:'unknown',reason:'restore reservation evidence missing'};if(result.status==='absent'&&(!provider.capabilities?.safeRetryAfterAbsent||provider.capabilities.providerFence&&(result.fence===undefined||BigInt(result.fence)<BigInt(token.epoch))))result={status:'unknown',reason:'provider absence does not fence obsolete starts'};}
-    catch{result={status:'unknown',reason:'provider lookup unavailable'};}finally{secret?.fill(0);}
-    const recorded=await recordResult(token,effect.data.attemptId,result);if(recorded.current&&recorded.state==='succeeded')await applyResult(id);return {effectId:id,...recorded};
+    let secret;
+    try{
+      const effect=await engine.read(tx=>get(tx,id));if(!effect)fail('CORRUPT_STATE','Recovery effect disappeared');const provider=configured(providers,effect);if(!provider)fail('UNSUPPORTED_EFFECT','Recovery provider configuration changed');
+      const sealed=await engine.read(tx=>custody.resolveForRecovery(tx,effect));secret=custody.open(sealed);const restoring=needsReservation(effect,token.incarnation),expectedIncarnations=restoring?await predecessors(effect):undefined;let result;
+      try{result=restoring?(qualified(provider)?await provider.reserveRestore({operationId:effect.data.providerOperationId,secret,fence:token.epoch,incarnation:token.incarnation,expectedIncarnations}):{status:'unknown',reason:'restored operation lacks incarnation reservation'}):provider.lookup?await provider.lookup({operationId:effect.data.providerOperationId,secret,fence:token.epoch,incarnation:token.incarnation}):{status:'unknown',reason:'provider has no authoritative lookup'};if(restoring&&(!result.reserved||result.incarnation!==token.incarnation||result.fence===undefined||BigInt(result.fence)<=BigInt(token.epoch)))result={status:'unknown',reason:'restore reservation evidence missing'};if(result.status==='absent'&&(!provider.capabilities?.safeRetryAfterAbsent||provider.capabilities.providerFence&&(result.fence===undefined||BigInt(result.fence)<BigInt(token.epoch))))result={status:'unknown',reason:'provider absence does not fence obsolete starts'};}
+      catch{result={status:'unknown',reason:'provider lookup unavailable'};}finally{secret.fill(0);}
+      const recorded=await recordResult(token,effect.data.attemptId,result);if(recorded.current&&recorded.state==='succeeded')await applyResult(id);return {effectId:id,...recorded};
+    }catch(error){throw rememberFailure(error,token);}finally{secret?.fill(0);}
+  }
+  async function deferJobFailure(id,error){
+    const code=typeof error?.code==='string'&&error.code.length?error.code:'ERROR';
+    if(['SERVICE_CLOSED','STORAGE_CLOSED','RESTORE_FENCED'].includes(code))throw error;
+    const storageFailure=['STORAGE_CONFLICT','COMMIT_UNKNOWN','STORAGE_ERROR','STORAGE_LIMIT'].includes(code),token=error&&typeof error==='object'?failedLeases.get(error):undefined;
+    return transaction(async tx=>{
+      const effect=await get(tx,id);if(!effect)return {effectId:id,error:code};
+      if(effect.data.state==='applied')return {effectId:id,error:code,applied:true};
+      if(effect.data.state!=='succeeded'&&(!token||!owns(effect,token)))return {effectId:id,error:code,stale:true};
+      if(effect.data.state==='succeeded'||storageFailure&&['pending','leased','started','unknown'].includes(effect.data.state)){
+        const dueAt=String(time(clock)+BigInt(leaseMs));await save(tx,[{...effect,data:{...effect.data,dueAt,reason:code}}]);return {effectId:id,error:code,deferred:true,dueAt,...(effect.data.state==='succeeded'?{applicationPending:true}:{recoveryRequired:true})};
+      }
+      if(['pending','leased','started','unknown'].includes(effect.data.state)){await save(tx,[{...effect,data:{...effect.data,state:'isolated',reason:code}}]);return {effectId:id,error:code,isolated:true};}
+      return {effectId:id,error:code};
+    });
   }
   async function drain({maxJobs=100,limits={maxNodes:1000,maxBatches:1000,maxBytes:4*1024*1024,maxOutput:1,batchKeys:32}}={}){
     if(!Number.isSafeInteger(maxJobs)||maxJobs<0)fail('INVALID_EFFECT','Invalid worker budget');const outcomes=[];
     for(let n=0;n<maxJobs;n++){
       const candidates=await engine.read(async tx=>{const found=[];for(const state of ['pending','leased','started','unknown','succeeded']){const page=await treeReadWindow(tx,catalog,{tenant,index:EFFECT_QUEUE,partition:[state]},{ranks:{start:0,end:1},range:{upper:{value:[time(clock)]}},limits});if(page.occurrences[0])found.push({state,...page.occurrences[0]});}return found.sort((a,b)=>a.order[0]<b.order[0]?-1:a.order[0]>b.order[0]?1:a.sourceId.localeCompare(b.sourceId))[0];});
-      if(!candidates)break;outcomes.push(await (['started','unknown'].includes(candidates.state)?reconcile(candidates.sourceId):runOne(candidates.sourceId)));
+      if(!candidates)break;
+      try{outcomes.push(await (['started','unknown'].includes(candidates.state)?reconcile(candidates.sourceId):runOne(candidates.sourceId)));}
+      catch(error){outcomes.push(await deferJobFailure(candidates.sourceId,error));}
     }return {outcomes};
   }
   async function cancel(id){return transaction(async(tx,incarnation)=>{

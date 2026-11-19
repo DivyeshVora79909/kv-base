@@ -14,3 +14,34 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test
+  foundationdb-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Install verified native FoundationDB 7.3.81 artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          native_root="$RUNNER_TEMP/kv-base-fdb"
+          mkdir -p "$native_root"
+          cd "$native_root"
+          curl --fail --location --retry 3 -o clients.deb https://github.com/apple/foundationdb/releases/download/7.3.81/foundationdb-clients_7.3.81-1_amd64.deb
+          curl --fail --location --retry 3 -o server.deb https://github.com/apple/foundationdb/releases/download/7.3.81/foundationdb-server_7.3.81-1_amd64.deb
+          cat > SHA256SUMS <<'EOF'
+          28bb8291c6b32647d1149286cd2b6b5204360833a42e39e7799d80be57cbfa87  clients.deb
+          232370c0be6c185c8a2c3225f61a56d7fe37c7bb9a197f94a23ee0dda6820ef4  server.deb
+          EOF
+          sha256sum --check SHA256SUMS
+          dpkg-deb --extract clients.deb native
+          dpkg-deb --extract server.deb native
+          echo "LD_LIBRARY_PATH=$native_root/native/usr/lib" >> "$GITHUB_ENV"
+          echo "KV_BASE_FDB_SERVER=$native_root/native/usr/sbin/fdbserver" >> "$GITHUB_ENV"
+          echo "KV_BASE_FDB_CLI=$native_root/native/usr/bin/fdbcli" >> "$GITHUB_ENV"
+      - name: Verify full suite with real FoundationDB and installed release, zero skips
+        run: node test/helpers/verified-environment.mjs

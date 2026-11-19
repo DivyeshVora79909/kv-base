@@ -363,7 +363,11 @@ Schemas use synchronous JSON Schema 2020-12 via Ajv 8.20.0 (MIT), with strict mo
 no coercion/defaults/property removal, no remote schema loading and no async schemas.
 Binding selectors require explicitly declared top-level properties, trusted header
 selectors or constants. Supported role domains are `integer`, `id`, `string`,
-`boolean`; unknown configuration keys reject. Missing values skip a membership only
+`boolean`; unknown configuration keys reject. Binding checks resolve explicit schema
+types through Ajv-registered references and composition. Incompatible referenced
+types reject like inline types; opaque predicates remain conservative and Ajv alone
+validates records. This does not prove arbitrary schema satisfiability.
+Missing values skip a membership only
 under `onMissing: 'skip'`; malformed present values still fail. Scalar/array/polymorphic
 references and unique tuples are declared once. Static distinct membership slots can
 repeat a source in the same view. Array-expanded membership binding is not yet supplied.
@@ -378,8 +382,17 @@ reads and per-membership repairs take O(h) logical path work for bounded summari
 a whole-root fold takes O(1) logical reads. Unchanged projections still require O(h)
 guarded lookup but cause zero physical occurrence writes; a complete no-op on an
 initialized valid store causes zero physical writes. Variable-width BigInt cost,
-multiple memberships, cascades and adapter scans add work. Values are detached; undefined is the absence sentinel; shared memory is
-rejected. Reentry into the same store and transaction use after closure reject.
+multiple memberships, cascades and adapter scans add work. Values are detached;
+undefined is the absence sentinel. Within one value or original receipt result,
+fixed private ArrayBuffers and overlapping typed-array/DataView views retain their
+backing relationships, offsets, types and repeated references on every adapter.
+Buffer normalizes to Uint8Array as with structured cloning. Shared and resizable
+backings reject; encoded view offsets and byte lengths must fit unsigned32-bit values.
+Binary-containing graphs additionally use exact codec bytes for no-op comparison,
+so alias splits/merges, offsets and full backing bytes remain observable writes.
+Traversal-order changes can stage additional binary writes; ordinary deep-equal
+object/Map/Set no-op behavior is preserved.
+Reentry into the same store and transaction use after closure reject.
 This memory adapter supplies no crash durability. Direct adapter calls are trusted
 internal operations, not authorized RPCs.
 
@@ -390,7 +403,10 @@ on one handle queue; another handle/process receives `STORAGE_CONFLICT` before e
 when the writer reservation is held. Reads, absent points and empty ranges stay
 protected across awaits. UTF-8 BLOB keys support embedded NUL and exact binary bounds;
 scans use SQLite bounds and merge the touched overlay. Values use a versioned V8
-codec, preserving BigInts, cycles and bytes. Unknown formats reject; cross-runtime
+codec, preserving BigInts, cycles, bytes and view backing identities. New writes use
+tagged view-aware V8 encoding; existing ordinary V8 values/receipts remain readable.
+Alias information already lost by an older writer cannot be reconstructed.
+Unknown formats reject; cross-runtime
 format migration is not provided. `readOnly: true` supplies coherent inspection
 snapshots with `serialized: false` and cannot back the engine facade.
 
@@ -409,7 +425,9 @@ distributed concurrency, storage-device guarantees or automatic retries.
 `openFoundationDbStore({clusterFile, prefix, timeoutMs: 4500,
 transactionBytes: 10000000, readOnly: false})` is the primary durable target. An
 explicit binary tuple namespace isolates KV rows, original receipts and codec
-metadata. One Node service may execute multiple native transactions concurrently:
+metadata. Initialization/checkpoints use exact tuple bounds; a name extended by an
+embedded NUL remains a separate namespace. Physical addresses are unchanged.
+One Node service may execute multiple native transactions concurrently:
 the adapter advertises `serializable: true`, `serialized: false`. Normal point and
 batch reads protect present/missing keys. Scans add a native conflict range over
 the complete requested interval, including keys beyond a limited page or a
@@ -711,8 +729,11 @@ unrelated partitions and hidden payload edits can allow authorized progress.
 No global source revision counter is used.
 
 Cursors are bounded random process-local handles whose positions and authority
-state remain private. Successful resume consumes the old handle; failed reads do
-not consume it. `engine.releaseCursor(handle)` frees an unused handle. Restart,
+state remain private. Resume reserves a handle synchronously; overlapping resumes
+reject `INVALID_CURSOR`. Successful storage return publishes one successor and
+consumes the old handle; failed reads do not consume it.
+`engine.releaseCursor(handle)` frees an unused handle and returns false while it
+is reserved by an active resume. Restart,
 another engine instance, tampering or reuse rejects. Old-generation handles reject
 after activation. This is volatile continuation, with no persistent/session-restore
 promise. A continuation independently enumerates source facts; its row, logical-byte
@@ -896,6 +917,13 @@ Stale observations cannot select application. `apply(tx,{effect,fact})` returns
 source commands; domain changes and the applied marker commit atomically. Failed
 validation retains the accepted fact for application retry without a new send.
 `drain` includes facts awaiting application and has finite job/read budgets.
+A failed application retains its accepted fact and original provider identity,
+defers its due time by the configured lease duration, reports `applicationPending`
+and continues other due jobs. Later application retries do not send again. Direct
+`apply`/`runOne` still throw the application failure. Malformed/missing local
+attempt or credential evidence stays a diagnosed local error; `drain` isolates
+that owned job rather than manufacturing provider uncertainty. Stale error cleanup
+cannot change a newer lease. Storage/fence/closure failures can still stop a drain.
 
 Unknown outcomes require lookup under the original key and retained credential.
 Absent lookup alone cannot make an obsolete delayed start safe. Fake transports
@@ -947,6 +975,10 @@ Default codes have eight cryptographically selected decimal digits, expire after
 five minutes, allow five distinct failed proof operations and permit three proof
 starts per actor per fifteen minutes. Trusted configuration can raise the code length
 to ten digits and select finite limits. The actor admission counter survives restart.
+Stored counters are validated independently of the current limits. A lower maximum
+throttles valid history in its active window; expired or changed-incarnation
+admission windows reset before the new policy applies. Malformed history remains
+corruption, while a lowered attempt limit can deny an existing active proof.
 Unknown/missing-contact actors create no durable proof or receipt. Failed completion
 records one bounded attempt and encrypted original denial per request identity;
 retries do not recount. Changed requests against a committed completion also consume
@@ -1004,7 +1036,9 @@ The dedicated APIs are `begin(token,{operationId,id,owner,bytes,sha256})`,
 bound to exact issuing session, incarnation, owner, size, digest and expiry. Upload
 persists bounded attempt evidence; finalize persists intent before file promotion,
 then current authority, ready source and original result commit atomically. Original
-finalize recovery cannot select another grant/version. Downloads require current
+finalize recovery cannot select another grant/version. Concurrent promotion drivers
+recheck the exact destination and digest when a stage disappears; reconciliation
+cannot abort valid promoted bytes as missing. Downloads require current
 Read and return `{bytes,sha256,stream}`. Transfers require both owners; pending
 transfers abort old grants. Tombstones commit with source deletion, while cleanup
 preserves later versions. Original begin recovery rechecks session and Update.
@@ -1014,7 +1048,9 @@ internal row cursor. It completes valid finalizations and cleans aborted/tombsto
 versions. Unsupported/corrupt bytes cannot activate. `checkFiles({maxFiles?,
 maxBytes?,maxSources?,maxRows?})` checks complete source/private-row/file identity,
 hashes ready/staged files and detects concurrent inventory changes; defaults are
-10000 files/sources/rows and256MiB total file bytes. `inspectFiles()` remains private.
+10000 files/sources/rows and256MiB total file bytes. Source and retained-row scans
+use pages of at most128 keys within each snapshot; cleaned historical rows still
+count toward `maxRows`. `inspectFiles()` remains private.
 These scans and per-download hashing are proportional work, not logarithmic queries.
 
 `createService({engine,identity,logins,publicModels,writableModels?,objects?,
@@ -1057,6 +1093,12 @@ descriptor})` creates the initial fsynced descriptor without replacing an existi
 installation. A descriptor binds version, explicit cluster file/prefix, object root,
 tenant, catalog identity and external incarnation; restored descriptors also retain
 known previous incarnations and original backup/activation identity. Keys stay external.
+Initial publication links a complete fsynced staged file into the absent destination,
+so concurrent initializers have exactly one winner; `DEPLOYMENT_EXISTS` never
+overwrites an existing selection. A published descriptor can retain its second
+private staging link after interruption. Descriptor reads accept that state;
+keyring and backup artifacts still require a single link. A failure after publication
+reports `COMMIT_UNKNOWN`; inspect the selected descriptor before retrying.
 
 `openSelfHosted({descriptor?,deploymentFile?,definition?|catalog?,keys?|keyring?|
 keyringFile?,activeKey?,logins,contacts,channels,providers,deliveryContext?,...})`
@@ -1066,6 +1108,10 @@ Engine, identity, proofs, custody, effects, objects and HTTP share that catalog 
 current identity policy. Candidate open starts no listener or worker. Service and
 worker tuning fields cannot replace those fixed components. Host clock, password,
 proof, engine/object limits and private callbacks remain trusted configuration.
+`objectCheckLimits:{maxFiles,maxBytes,maxSources,maxRows}` supplies finite positive
+overrides for bootstrap/start integrity checks. Defaults remain10000 inventories
+and256MiB files; increase these explicit check budgets as retained state grows.
+Paged checks still accumulate bounded inventories and obey native lifetime limits.
 
 `runtime.bootstrap({operationId,policy,credentials,sources,providerCredentials})`
 is privileged initial enrollment. A private HMAC claim binds the entire original
@@ -1077,14 +1123,18 @@ must pass before ingress. Credentials and provider secrets never persist as plai
 
 `runtime.start({host?,port?,workerIntervalMs?,maxJobs?})` owns one listener and a
 bounded worker schedule. Defaults are loopback, ephemeral port,250ms interval and
-one job per tick; zero interval disables automatic worker admission. HTTP health
+one job per tick; zero interval disables automatic worker admission. The periodic
+poll has its own busy flag and can progress alongside unrelated requests/uploads.
+HTTP health
 uses runtime readiness:200 for ready/ok,503 for unavailable/stopped/uninitialized.
 It contains no target, secret or diagnostic fields. `runtime.health()` is also an
 importable sanitized status. A changed selected descriptor/incarnation makes the
 old runtime unavailable; reopen the newly selected installation explicitly.
 
 `runtime.drainEffects(options)` and the returned identity/proof/object/engine/worker
-facades register work synchronously before async admission. Nested work is tracked;
+facades register work synchronously before async admission. HTTP work is registered
+before reading its body; accepted JSON/upload requests may finish domain calls during
+the pause and drain before maintenance. Nested work is tracked;
 escaped async contexts cannot reuse an expired admission. `runtime.quiesce(callback)`
 stops new ingress/workers and waits for admitted HTTP/uploads/provider calls and
 application. Its callback admits only maintenance read/check/cleanup work; it then

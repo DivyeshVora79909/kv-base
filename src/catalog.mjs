@@ -18,11 +18,11 @@ function slots(entries, label) {
   const seen = new Set();
   for (const entry of entries) { object(entry, label); name(entry.slot, `${label} slot`); if (seen.has(entry.slot)) fail(`Duplicate ${label} slot ${entry.slot}`); seen.add(entry.slot); }
 }
-function selector(model, value, expected, modelDefinitions) {
+function selector(model, value, expected, modelDefinitions, allowsType) {
   object(value, 'Selector');
   if (own(value, 'path')) {
     const terminal = validatePath(modelDefinitions, model, value);
-    return selector(terminal, own(value,'field') ? {field:value.field} : {header:value.header}, expected, modelDefinitions);
+    return selector(terminal, own(value,'field') ? {field:value.field} : {header:value.header}, expected, modelDefinitions, allowsType);
   }
   const keys = Object.keys(value);
   if (keys.length !== 1 || !['field', 'header', 'constant'].includes(keys[0])) fail('Selector requires exactly one field, header or constant');
@@ -35,10 +35,7 @@ function selector(model, value, expected, modelDefinitions) {
     if (!['id', 'tenant', 'owner', 'createdAt'].includes(value.header)) fail('Unsupported header selector');
     if (expected && (value.header === 'createdAt' ? expected !== 'integer' : !['id', 'string'].includes(expected))) fail('Incompatible header domain');
   } else if (expected) decodeDomain(expected, value.constant);
-  if (expected && schema && typeof schema === 'object' && schema.type !== undefined) {
-    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
-    if (!types.includes(expected === 'boolean' ? 'boolean' : 'string')) fail(`Field ${value.field} is incompatible with ${expected} wire values`);
-  }
+  if (expected && schema !== undefined && !allowsType(model, schema, expected === 'boolean' ? 'boolean' : 'string')) fail(`Field ${value.field} is incompatible with ${expected} wire values`);
 }
 
 /** Compile immutable declarations and trusted implementation references once. */
@@ -49,6 +46,52 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
   for (const key of ['calculations', 'dependencies']) if (!emptyDeferred(declaration[key])) fail(`${key} are unsupported in JS-P1`);
   const contracts = Object.create(null), views = Object.create(null), models = Object.create(null), usedMonoids = Object.create(null), usedValidators = Object.create(null), usedCalculations = Object.create(null);
   const ajv = new Ajv2020({ strict: true, allErrors: true, ownProperties: true, coerceTypes: false, useDefaults: false, removeAdditional: false, validateSchema: true });
+  const modelValidators = new Map(), modelBases = new Map(), schemaBases = new WeakMap();
+  const resolve = (base, ref) => ajv.opts.uriResolver.resolve(base, ref);
+  const collectBases = (schema, inheritedBase) => {
+    if (!schema || typeof schema !== 'object') return;
+    const bases = schemaBases.get(schema) ?? new Set(); bases.add(inheritedBase); schemaBases.set(schema, bases);
+    const base = typeof schema.$id === 'string' ? resolve(inheritedBase, schema.$id) : inheritedBase;
+    for (const child of Object.values(schema)) collectBases(child, base);
+  };
+  // This only rules out impossible wire types. Ajv remains the value validator;
+  // patterns, conditionals and arbitrary schema satisfiability are not inferred.
+  const possibleType = (schema, expected, inheritedBase, active = new Set()) => {
+    if (typeof schema === 'boolean') return schema;
+    if (active.has(schema)) return true;
+    active.add(schema);
+    const base = typeof schema.$id === 'string' ? resolve(inheritedBase ?? '', schema.$id) : inheritedBase;
+    let possible = schema.type === undefined || (Array.isArray(schema.type) ? schema.type : [schema.type]).includes(expected);
+    if (possible && schema.$ref !== undefined && base !== undefined) {
+      const target = ajv.getSchema(resolve(base, schema.$ref))?.schema;
+      if (target !== undefined) {
+        const bases = schemaBases.get(target);
+        possible = possibleType(target, expected, bases?.size === 1 ? [...bases][0] : undefined, active);
+      }
+    }
+    if (possible && schema.allOf) possible = schema.allOf.every(child => possibleType(child, expected, base, active));
+    for (const keyword of ['anyOf', 'oneOf']) if (possible && schema[keyword]) possible = schema[keyword].some(child => possibleType(child, expected, base, active));
+    active.delete(schema);
+    return possible;
+  };
+  const allowsType = (model, schema, expected) => possibleType(schema, expected, modelBases.get(model));
+  for (const [id, spec] of Object.entries(object(declaration.models, 'Models'))) {
+    object(spec.schema, 'Model schema');
+    if (spec.schema.type !== 'object' || spec.schema.additionalProperties !== false) fail('Model schema requires object root and additionalProperties:false');
+    object(spec.schema.properties, 'Schema properties');
+    const rejectAsync = value => { if (!value || typeof value !== 'object') return; if (value.$async !== undefined) fail('$async schemas are unsupported'); for (const child of Object.values(value)) rejectAsync(child); };
+    rejectAsync(spec.schema);
+    const key = `https://kv-base.invalid/catalog/models/${encodeURIComponent(id)}`;
+    ajv.addSchema(spec.schema, key);
+    // A declared root $id is Ajv's base, including when it is relative; the
+    // internal registration key is only the base for an anonymous root.
+    collectBases(spec.schema, typeof spec.schema.$id === 'string' ? '' : key);
+    modelBases.set(spec, typeof spec.schema.$id === 'string' ? resolve('', spec.schema.$id) : key);
+    modelValidators.set(spec, key);
+  }
+  // Register all schemas before compiling so declared references and path terminals
+  // are independent of the order in which models appear in the catalog.
+  for (const [spec, key] of modelValidators) modelValidators.set(spec, ajv.getSchema(key));
   for (const [id, spec] of Object.entries(object(declaration.contracts, 'Contracts'))) {
     keysOnly(spec, ['version','partition','order','inputs','aggregates','validators','calculations','dependencies'], 'Contract');
     for (const key of ['calculations', 'dependencies']) if (!emptyDeferred(spec[key])) fail(`${key} are unsupported in JS-P1`);
@@ -100,12 +143,7 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
       usedCalculations[rule.use] = { version: implementation.version };
       return { ...rule, implementation };
     });
-    object(spec.schema, 'Model schema');
-    if (spec.schema.type !== 'object' || spec.schema.additionalProperties !== false) fail('Model schema requires object root and additionalProperties:false');
-    object(spec.schema.properties, 'Schema properties');
-    const rejectAsync = value => { if (!value || typeof value !== 'object') return; if (value.$async !== undefined) fail('$async schemas are unsupported'); for (const child of Object.values(value)) rejectAsync(child); };
-    rejectAsync(spec.schema);
-    const validate = ajv.compile(spec.schema);
+    const validate = modelValidators.get(spec);
     if (validate.$async) fail('$async schemas are unsupported');
     const references = spec.references ?? [], uniqueness = spec.uniqueness ?? [], memberships = spec.memberships ?? [];
     slots(references, 'reference'); slots(uniqueness, 'uniqueness'); slots(memberships, 'membership');
@@ -115,10 +153,7 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
       if (!Array.isArray(reference.targets) || !reference.targets.length || reference.targets.some(target => !own(declaration.models, target))) fail('Unknown reference target');
       if (typeof reference.many !== 'boolean' || reference.onDelete !== 'reject') fail('Unsupported reference behavior');
       const fieldSchema = spec.schema.properties[reference.field];
-      if (fieldSchema?.type !== undefined) {
-        const types = Array.isArray(fieldSchema.type) ? fieldSchema.type : [fieldSchema.type];
-        if (!types.includes(reference.many ? 'array' : 'string')) fail('Incompatible reference field schema');
-      }
+      if (!allowsType(spec, fieldSchema, reference.many ? 'array' : 'string')) fail('Incompatible reference field schema');
     }
     for (const unique of uniqueness) { keysOnly(unique, ['slot','fields'], 'Uniqueness'); if (!Array.isArray(unique.fields) || !unique.fields.length) fail('Uniqueness requires fields'); unique.fields.forEach(value => selector(spec, value)); }
     for (const membership of memberships) {
@@ -126,14 +161,14 @@ export function prepareCatalog(definition, { monoids = standardMonoids, validato
       const view = views[membership.view]; if (!view) fail(`Unknown view ${membership.view}`);
       const contract = view.contract;
       if (!Array.isArray(membership.partition) || membership.partition.length !== contract.partition.length) fail('Wrong partition arity');
-      membership.partition.forEach((value, index) => selector(spec, value, contract.partition[index], declaration.models));
+      membership.partition.forEach((value, index) => selector(spec, value, contract.partition[index], declaration.models, allowsType));
       if (Array.isArray(contract.order)) {
         if (!Array.isArray(membership.order) || membership.order.length !== contract.order.length) fail('Wrong order arity');
-        membership.order.forEach((value, index) => selector(spec, value, contract.order[index], declaration.models));
-      } else selector(spec, membership.order, contract.order, declaration.models);
+        membership.order.forEach((value, index) => selector(spec, value, contract.order[index], declaration.models, allowsType));
+      } else selector(spec, membership.order, contract.order, declaration.models, allowsType);
       object(membership.inputs, 'Membership inputs');
       if (Object.keys(membership.inputs).length !== Object.keys(contract.inputs).length || Object.keys(membership.inputs).some(key => !own(contract.inputs, key))) fail('Membership input mismatch');
-      for (const [key, expected] of Object.entries(contract.inputs)) selector(spec, membership.inputs[key], expected, declaration.models);
+      for (const [key, expected] of Object.entries(contract.inputs)) selector(spec, membership.inputs[key], expected, declaration.models, allowsType);
       if (!['reject', 'skip'].includes(membership.onMissing)) fail('Membership requires onMissing policy');
     }
     models[id] = { ...spec, access: own(spec, 'access') ? spec.access : null, managed, calculations: compiledCalculations, references, uniqueness, memberships, validate };

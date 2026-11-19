@@ -165,8 +165,14 @@ export async function openObjectStore(configuration) {
     try { await verifyFile(target, current); }
     catch (cause) {
       if (cause.code !== 'ENOENT') throw cause;
-      await verifyFile(join(stages, filename(current.stage)), current);
-      try { await rename(join(stages, current.stage), target); } catch (renameError) { if (renameError.code !== 'ENOENT') throw renameError; await verifyFile(target, current); }
+      const stage = join(stages, filename(current.stage));
+      try { await verifyFile(stage, current); await rename(stage, target); }
+      catch (stageError) {
+        if (stageError.code !== 'ENOENT') throw stageError;
+        // Another driver may have atomically moved the stage after our first
+        // destination read. Absence is safe only after checking that exact file.
+        await verifyFile(target, current);
+      }
     }
     await chmod(target, 0o400); const handle = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW); try { await handle.sync(); } finally { await handle.close(); }
     await syncDirectory(objects); await syncDirectory(stages); await verifyFile(target, current); await phase('finalize:promoted', current);
@@ -277,10 +283,19 @@ export async function openObjectStore(configuration) {
     fields(options, ['maxFiles', 'maxBytes', 'maxSources', 'maxRows'], []);
     const caps = { maxFiles: 10_000, maxBytes: 256 * 1024 * 1024, maxSources: 10_000, maxRows: 10_000, ...options };
     if (!Object.values(caps).every(n => natural(n) && n > 0)) fail('WORK_LIMIT', 'Invalid object check limits');
+    async function inventory(tx, prefix, maximum) {
+      const entries = []; let after;
+      while (true) {
+        const remaining = maximum - entries.length, limit = Math.min(127, remaining) + 1;
+        const page = await tx.scan({ prefix, ...(after === undefined ? {} : { gt: after }), limit });
+        if (page.length > remaining) fail('WORK_LIMIT', 'Object source/row check budget exceeded');
+        entries.push(...page); if (page.length < limit) return entries;
+        after = page.at(-1).key;
+      }
+    }
     async function snapshot() {
       return engine.read(async tx => {
-        const [sources, stored] = await Promise.all([tx.scan({ prefix: sourcePrefix(tenant), limit: caps.maxSources + 1 }), tx.scan({ prefix: rowsPrefix, limit: caps.maxRows + 1 })]);
-        if (sources.length > caps.maxSources || stored.length > caps.maxRows) fail('WORK_LIMIT', 'Object source/row check budget exceeded');
+        const [sources, stored] = await Promise.all([inventory(tx, sourcePrefix(tenant), caps.maxSources), inventory(tx, rowsPrefix, caps.maxRows)]);
         const selected = sources.filter(entry => entry.value.model === model).map(entry => {
           const source = validateRecord(catalog, entry.value); if (source.tenant !== tenant || entry.key !== sourceKey(tenant, source.id)) fail('OBJECT_FILE_INTEGRITY', 'Object source key and header differ'); return source;
         });

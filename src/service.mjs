@@ -15,7 +15,7 @@ const denied = () => fail('FORBIDDEN', 'Request is not permitted');
 const statuses = { BAD_REQUEST: 400, INVALID_READ: 400, INVALID_MUTATION: 400, INVALID_RECORD: 400,
   INVALID_IDENTITY: 400, INVALID_PROOF: 400, INVALID_VALUE: 400, REQUEST_TIMEOUT: 408, RECEIPT_MISMATCH: 409, UNAUTHENTICATED: 401,
   FORBIDDEN: 403, WORK_LIMIT: 429, AUTH_WORK_LIMIT: 429, STORAGE_CONFLICT: 409,
-  COMMIT_UNKNOWN: 503, RESTORE_FENCED: 401, AUTH_CHANGED: 409, REQUEST_LIMIT: 413 };
+  COMMIT_UNKNOWN: 503, SERVICE_CLOSED: 503, RESTORE_FENCED: 401, AUTH_CHANGED: 409, REQUEST_LIMIT: 413 };
 Object.assign(statuses, { STORAGE_LIMIT: 429, INVALID_OBJECT: 400, INVALID_OBJECT_GRANT: 403,
   OBJECT_EXISTS: 409, OBJECT_BUSY: 409, OBJECT_SIZE: 413, OBJECT_DIGEST: 400,
   OBJECT_TIMEOUT: 408, OBJECT_NOT_READY: 409, INVALID_CURSOR: 400, STALE_CURSOR: 409 });
@@ -24,9 +24,9 @@ Object.assign(statuses, { STORAGE_LIMIT: 429, INVALID_OBJECT: 400, INVALID_OBJEC
  * transport callbacks, secret keys or diagnostic APIs. TLS belongs to the host. */
 export function createService({ engine, identity, logins, publicModels, writableModels, operations = {}, objects,
   maxBodyBytes = 262144, maxResponseBytes = 4194304, maxActive = 32, maxPageSize = 100,
-  requestTimeoutMs = 30000, maxUploadBytes = 16777216, maxDownloadBytes = maxUploadBytes, clock = Date.now, onError = () => {}, getHealth = () => ({ status: 'ok' }) }) {
+  requestTimeoutMs = 30000, maxUploadBytes = 16777216, maxDownloadBytes = maxUploadBytes, clock = Date.now, onError = () => {}, getHealth = () => ({ status: 'ok' }), admitRequest = callback => callback() }) {
   if (!engine?.catalog || !identity || identity.tenant !== engine.tenant || !logins || !Array.isArray(publicModels) || writableModels !== undefined && !Array.isArray(writableModels)
-    || typeof clock !== 'function' || typeof getHealth !== 'function' || ![maxBodyBytes, maxResponseBytes, maxActive, maxPageSize, requestTimeoutMs, maxUploadBytes, maxDownloadBytes].every(finite)) fail('INVALID_SERVICE', 'Invalid service configuration');
+    || typeof clock !== 'function' || typeof getHealth !== 'function' || typeof admitRequest !== 'function' || ![maxBodyBytes, maxResponseBytes, maxActive, maxPageSize, requestTimeoutMs, maxUploadBytes, maxDownloadBytes].every(finite)) fail('INVALID_SERVICE', 'Invalid service configuration');
   if (objects && (objects.tenant !== engine.tenant || !engine.catalog.models[objects.model]?.access)) fail('INVALID_SERVICE', 'Objects must use the fixed service tenant and catalog');
   if (requestTimeoutMs > 2147483647) fail('INVALID_SERVICE', 'Request timeout exceeds native timer range');
   const models = new Set(publicModels), writes = new Set(writableModels ?? publicModels.filter(model => model !== objects?.model)), accounts = new Map(Object.entries(logins));
@@ -121,6 +121,7 @@ export function createService({ engine, identity, logins, publicModels, writable
     try {
       if (closing || active >= maxActive) fail('WORK_LIMIT', 'Service admission exhausted');
       active++; admitted = true;
+      await admitRequest(async () => {
       const url = new URL(request.url, 'http://localhost');
       if (url.search || request.headers.origin !== undefined) fail('BAD_REQUEST', 'Unsupported request');
       if (request.method === 'GET' && url.pathname === '/health') {
@@ -169,6 +170,7 @@ export function createService({ engine, identity, logins, publicModels, writable
         default: result = objectMethod ? await objects[objectMethod](bearer, input) : await extras.get(url.pathname).handle(bearer, input);
       }
       send(response, 200, result);
+      });
     } catch (error) {
       request.resume();
       const status = statuses[error.code] ?? 500, code = statuses[error.code] ? error.code : 'INTERNAL_ERROR';

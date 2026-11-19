@@ -48,7 +48,7 @@ export function createEngine(configuration){
   const isOwned=key=>typeof key==='string'&&owned.some(prefix=>key.startsWith(prefix));
   const prefix=generation=>`${generationBase}${generation}/`;
   const physical=(key,generation)=>generation&&isOwned(key)?prefix(generation)+key:key;
-  const cursors=new Map(),readers=new Map();
+  const cursors=new Map(),pendingCursors=new Set(),readers=new Map();
   function fixedContext(context){
     fields(context,['tenant','actor'],['tenant','actor']);assertJson(context);
     decodeDomain('id',context.tenant);decodeDomain('id',context.actor);
@@ -133,11 +133,22 @@ export function createEngine(configuration){
     if(value.generation!==current.generation||value.queryHash!==queryHash||value.dataHash!==dataHash||value.authorityHash!==authorityHash)fail('STALE_CURSOR','Cursor query, generation, data or authority changed');
     return value.position;
   }
+  async function cursorPage(id,read){
+    const held=id!==undefined&&typeof id==='string'&&cursors.has(id);
+    if(held&&pendingCursors.has(id))fail('INVALID_CURSOR','Cursor resume is already in progress');
+    if(held)pendingCursors.add(id);
+    try{
+      const {result,next}=await read();
+      const cursor=next?token(next.current,next.queryHash,next.dataHash,next.authorityHash,next.position,id):null;
+      if(id!==undefined)cursors.delete(id);
+      return {...result,cursor};
+    }finally{if(held)pendingCursors.delete(id);}
+  }
   async function window(query,options={}){
     exact(options,['cursor','limits'],[]);options=structuredClone(options);
     if(options.limits!==undefined){fields(options.limits,Object.keys(windowLimits),Object.keys(windowLimits));if(!Object.values(options.limits).every(natural)||options.limits.batchKeys===0)fail('INVALID_READ','Invalid window limits');}
     const fixed=fixedQuery(query),contract=catalog.views[fixed.view].contract;
-    return activeStore.read(async(tx,current)=>{
+    return cursorPage(options.cursor,()=>activeStore.read(async(tx,current)=>{
       const witness=await sources(tx),records=new Map(witness.records.map(r=>[r.id,r]));
       const tree=sourceOracle(catalog,witness.records).trees.find(t=>t.view===fixed.view&&canonical(t.partition)===canonical(fixed.partition));
       const all=(tree?.members??[]).map((row,rank)=>({...row,rank})).filter(row=>containsRange(contract.order,row,fixed.range));
@@ -147,10 +158,9 @@ export function createEngine(configuration){
       const result=await treeReadWindow(tx,catalog,{tenant,view:fixed.view,partition:fixed.partition},{range:fixed.range,ranks,limits:options.limits??windowLimits});
       const expected=page.map(row=>({rank:row.rank,sourceId:row.sourceId,slot:row.slot,order:row.order}));
       if(canonical(result.occurrences)!==canonical(expected))fail('INTEGRITY','Window differs from source facts');
-      const cursor=page.length&&remaining.length>page.length?token(current,queryHash,dataHash,null,expected.at(-1),options.cursor):null;
-      if(options.cursor)cursors.delete(options.cursor);
-      return {...result,cursor,limits:{...(options.limits??windowLimits)},witness:{sources:witness.records.length,sourceBytes:witness.sourceBytes,scannedKeys:witness.scannedKeys,metrics:tx.inspect().metrics}};
-    });
+      const next=page.length&&remaining.length>page.length?{current:{generation:current.generation},queryHash,dataHash,authorityHash:null,position:expected.at(-1)}:null;
+      return {next,result:{...result,limits:{...(options.limits??windowLimits)},witness:{sources:witness.records.length,sourceBytes:witness.sourceBytes,scannedKeys:witness.scannedKeys,metrics:tx.inspect().metrics}}};
+    }));
   }
   async function authorizedPage(context,query,options={}){
     context=fixedContext(context);
@@ -161,7 +171,7 @@ export function createEngine(configuration){
     const {cursor,getAuthority:provider,getContinuationFence,onMetrics,...inputLimits}=options;canonical(inputLimits);
     if(!Object.values(inputLimits).every(natural)||inputLimits.batchSize===0)fail('INVALID_READ','Invalid authorized page limits');
     const readOptions={...structuredClone(inputLimits),getAuthority:provider,...(onMetrics===undefined?{}:{onMetrics})};
-    return activeStore.read(async(tx,current)=>{
+    return cursorPage(cursor,()=>activeStore.read(async(tx,current)=>{
       const prepared=await readOptions.getAuthority?.(tx),getAuthority=async()=>prepared;
       let initialDiscovery=0;const discoveryLimit=readOptions.maxDiscovery??10000;
       const scope=await resolveRequestAuthority(tx,catalog,context,getAuthority,()=>{if(++initialDiscovery>discoveryLimit)fail('WORK_LIMIT','Authorized discovery budget exceeded');});
@@ -198,9 +208,9 @@ export function createEngine(configuration){
       const result=await readAuthorizedInTransaction(tx,catalog,context,narrowed,{...readOptions,maxDiscovery:discoveryLimit-initialDiscovery,getAuthority,onMetrics:metrics=>{readerMetrics=metrics;}});
       if(canonical(result.records)!==canonical(page.map(row=>records.get(row.sourceId))))fail('INTEGRITY','Authorized page differs from source facts');
       if(readOptions.onMetrics)await readOptions.onMetrics({...readerMetrics,discovery:readerMetrics.discovery+initialDiscovery,continuationWitness:{authorityDiscovery:initialDiscovery,sources:witness.records.length,sourceBytes:witness.sourceBytes,scannedKeys:witness.scannedKeys}});
-      const next=page.length&&remaining.length>page.length?token(current,queryHash,dataHash,authorityHash,{order:page.at(-1).order,sourceId:page.at(-1).sourceId,slot:page.at(-1).slot},cursor):null;
-      if(cursor)cursors.delete(cursor);return {records:result.records,cursor:next};
-    });
+      const next=page.length&&remaining.length>page.length?{current:{generation:current.generation},queryHash,dataHash,authorityHash,position:{order:page.at(-1).order,sourceId:page.at(-1).sourceId,slot:page.at(-1).slot}}:null;
+      return {next,result:{records:result.records}};
+    }));
   }
   async function retire(){
     return store.transact(async tx=>{
@@ -250,6 +260,6 @@ export function createEngine(configuration){
     mutateAuthorized:async(context,changes,options)=>mutateAuthorized(activeStore,catalog,fixedContext(context),changes,options),
     readAuthorized:async(context,query,options)=>readAuthorized(activeStore,catalog,fixedContext(context),query,options),
     window,authorizedPage,rebuild,retire,inspect,check:()=>checkStore(activeStore,catalog,tenant),
-    releaseCursor:id=>cursors.delete(id),
+    releaseCursor:id=>pendingCursors.has(id)?false:cursors.delete(id),
   });
 }

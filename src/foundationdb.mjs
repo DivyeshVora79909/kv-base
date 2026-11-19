@@ -1,8 +1,7 @@
 import { resolve } from 'node:path';
-import { serialize, deserialize } from 'node:v8';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { isDeepStrictEqual } from 'node:util';
 import { copyKvData as copy, checkKvKey, compareKvKeys as compare } from './kv-data.mjs';
+import { encodeKvData, decodeKvData, sameKvData } from './values.mjs';
 
 const context = new AsyncLocalStorage(), format = 'kv-base-node-v8-1', apiVersion = 720;
 const error = (code, message, cause) => Object.assign(new Error(message, cause ? { cause } : undefined), { code });
@@ -25,7 +24,7 @@ function range(options = {}) {
 function prefixEnd(bytes) { const end = Buffer.from(bytes); for (let i = end.length - 1; i >= 0; i--) if (end[i] < 255) { end[i]++; return end.subarray(0, i + 1); } throw error('INVALID_RANGE', 'Unbounded physical prefix'); }
 const after = bytes => Buffer.concat([bytes, Buffer.from([0])]);
 function receiptSpec(value) { fields(value, ['id', 'digest']); if (Object.keys(value).length !== 2) throw error('INVALID_RECEIPT', 'Receipt requires id and digest'); return { id: checkKvKey(value.id), digest: checkKvKey(value.digest) }; }
-function decode(bytes) { try { if (!(bytes instanceof Uint8Array)) throw Error('Expected bytes'); return copy(deserialize(bytes)); } catch (cause) { throw error('CORRUPT_STATE', 'Invalid persisted value', cause); } }
+function decode(bytes) { try { return decodeKvData(bytes); } catch (cause) { throw error('CORRUPT_STATE', 'Invalid persisted value', cause); } }
 function storedReceipt(bytes, id) { const value = decode(bytes); if (!value || Object.keys(value).length !== 3 || value.id !== id || typeof value.digest !== 'string' || !Object.hasOwn(value, 'result')) throw error('CORRUPT_STATE', 'Invalid receipt'); return value; }
 
 /** Concurrent native serializable transactions. Application callbacks execute
@@ -38,6 +37,10 @@ export async function openFoundationDbStore(options = {}) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 4500 || !Number.isSafeInteger(transactionBytes) || transactionBytes < 32 || transactionBytes > 10_000_000 || typeof readOnly !== 'boolean') throw error('INVALID_STORAGE', 'Invalid physical transaction limits');
   const { fdb, predicate } = await loadSdk(), db = fdb.open(clusterFile), identity = Symbol('foundationdb store');
   const root = fdb.tuple.pack(['kv-base', prefix]), dataPrefix = Buffer.concat([root, Buffer.from([0])]), receiptPrefix = Buffer.concat([root, Buffer.from([1])]), formatKey = Buffer.concat([root, Buffer.from([2]), Buffer.from('format')]);
+  // The tuple's final NUL is also the first byte of an escaped embedded NUL
+  // in a longer logical prefix. Its continuation is 0xff, outside this exact
+  // namespace's data/receipt/metadata suffix range. Physical keys stay unchanged.
+  const namespaceEnd = Buffer.concat([root, Buffer.from([0xff])]);
   if (formatKey.length > 10_000) { db.close(); throw error('STORAGE_LIMIT', 'Namespace exceeds native key limit'); }
   const nativeOptions = { timeout: timeoutMs, size_limit: transactionBytes };
   const nativeError = cause => cause instanceof fdb.FDBError && Number.isInteger(cause.code);
@@ -58,7 +61,7 @@ export async function openFoundationDbStore(options = {}) {
       try {
         const prior = await tn.get(formatKey);
         if (prior === undefined) {
-          if (readOnly || (await tn.getRangeAll(root, prefixEnd(root), { limit: 1 })).length) throw error('STORAGE_FORMAT_MISMATCH', 'Namespace is not initialized or contains unrecognized state');
+          if (readOnly || (await tn.getRangeAll(root, namespaceEnd, { limit: 1 })).length) throw error('STORAGE_FORMAT_MISMATCH', 'Namespace is not initialized or contains unrecognized state');
           tn.set(formatKey, Buffer.from(format));
         }
         else if (!Buffer.from(prior).equals(Buffer.from(format))) throw error('STORAGE_FORMAT_MISMATCH', 'Unsupported value codec');
@@ -71,7 +74,7 @@ export async function openFoundationDbStore(options = {}) {
   const location=Object.freeze({adapter:'foundationdb',clusterFile:resolve(clusterFile),prefix});
   const capabilities = Object.freeze({ adapter: 'foundationdb', volatile: false, durable: true, serialized: false, serializable: true, readOnly, format, apiVersion, keyBytes: 10_000, valueBytes: 100_000, transactionBytes, timeoutMs, scans: 'native ordered range batches plus touched overlay merge', guards: 'native non-snapshot point/absence reads and explicit full requested read conflict ranges', callbackRetries: 0 });
   const key = (name, namespace = dataPrefix) => { const value = Buffer.concat([namespace, Buffer.from(checkKvKey(name))]); if (value.length > 10_000) throw error('STORAGE_LIMIT', 'Physical key exceeds 10000 bytes'); return value; };
-  const encode = value => { const bytes = serialize(copy(value)); if (bytes.length > 100_000) throw error('STORAGE_LIMIT', 'Encoded value exceeds 100000 bytes'); return bytes; };
+  const encode = value => { const bytes = encodeKvData(value); if (bytes.length > 100_000) throw error('STORAGE_LIMIT', 'Encoded value exceeds 100000 bytes'); return bytes; };
   function run(callback, options, readonly, receiptOnly) {
     if (context.getStore()?.has(identity)) return Promise.reject(error('NESTED_TRANSACTION', 'Same-store nested transactions are unsupported'));
     if (closing || closed) return Promise.reject(error('STORAGE_CLOSED', 'Store is closing or closed'));
@@ -139,7 +142,7 @@ export async function openFoundationDbStore(options = {}) {
           if (bytes !== undefined) { const value = storedReceipt(bytes, fixed.receipt.id); if (value.digest !== fixed.receipt.digest) throw error('RECEIPT_MISMATCH', 'Operation identity has another digest'); if (fixed.verifyReplay) await fixed.verifyReplay(facade(true), copy(value)); return copy(value.result); }
         }
         const result = await callback(facade()), changes = [];
-        for (const [name, entry] of overlay) { const previous = await load(name); if (entry.exists) { if (!previous.exists || !isDeepStrictEqual(previous.value, entry.value)) changes.push({ type: 'set', key: name, value: entry.value }); } else if (previous.exists) changes.push({ type: 'delete', key: name }); }
+        for (const [name, entry] of overlay) { const previous = await load(name); if (entry.exists) { if (!previous.exists || !sameKvData(previous.value, entry.value)) changes.push({ type: 'set', key: name, value: entry.value }); } else if (previous.exists) changes.push({ type: 'delete', key: name }); }
         const receipt = fixed.receipt ? { ...fixed.receipt, result: copy(result) } : undefined, receiptBytes = receipt ? encode(receipt) : undefined;
         open = false;
         for (const change of changes) { const physical = key(change.key); if (change.type === 'set') { const bytes = encode(change.value); tn.set(physical, bytes); metrics.nativeWriteBytes += physical.length + bytes.length; } else { tn.clear(physical); metrics.nativeWriteBytes += physical.length; } metrics.nativeWrites++; }
@@ -192,8 +195,8 @@ export async function openFoundationDbStore(options = {}) {
   function captureCheckpoint(options = {}) { return checkpointTask(async () => {
     fields(options, ['maxRows', 'maxBytes']); const limits = checkpointLimits(options), tn = db.rawCreateTransaction(nativeOptions);
     try {
-      tn.addReadConflictRange(root, prefixEnd(root));
-      const physical = await tn.getRangeAll(root, prefixEnd(root), { limit: limits.maxRows + 1 });
+      tn.addReadConflictRange(root, namespaceEnd);
+      const physical = await tn.getRangeAll(root, namespaceEnd, { limit: limits.maxRows + 1 });
       const snapshot = { protocol: 'kv-base-fdb-checkpoint-1', format, rows: physical.map(([key, value]) => [Buffer.from(key).subarray(root.length), Buffer.from(value)]) };
       validateCheckpoint(snapshot, limits); await tn.rawCommit(); return snapshot;
     } catch (cause) { throw classify(cause, true); } finally { tn.rawCancel(); }
@@ -204,8 +207,8 @@ export async function openFoundationDbStore(options = {}) {
     for (const name of ['beforeCommit', 'afterCommit']) if (options[name] !== undefined && typeof options[name] !== 'function') throw error('INVALID_OPTIONS', 'Expected checkpoint hook');
     const limits = checkpointLimits(options), checked = validateCheckpoint(snapshot, limits), tn = db.rawCreateTransaction(nativeOptions); let attempted = false, committed = false;
     try {
-      tn.addReadConflictRange(root, prefixEnd(root));
-      const existing = await tn.getRangeAll(root, prefixEnd(root), { limit: 2 });
+      tn.addReadConflictRange(root, namespaceEnd);
+      const existing = await tn.getRangeAll(root, namespaceEnd, { limit: 2 });
       if (existing.length !== 1 || !Buffer.from(existing[0][0]).equals(formatKey) || !Buffer.from(existing[0][1]).equals(Buffer.from(format))) throw error('RESTORE_TARGET_NOT_EMPTY', 'Restore requires an empty initialized candidate namespace');
       for (const [suffix, value] of checked.rows) tn.set(Buffer.concat([root, suffix]), value);
       if (options.beforeCommit) await options.beforeCommit({ rows: checked.rows.length, bytes: checked.bytes });

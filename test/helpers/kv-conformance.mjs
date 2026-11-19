@@ -26,6 +26,65 @@ export function registerKvConformance(name, open, { receipts = false } = {}) {
     assert.equal(actual.cycle.self, actual.cycle); assert.equal(actual.cycle.n, 90071992547409931234567n);
     assert.deepEqual([...actual.bytes], [0, 255, 1]); assert.deepEqual(actual.map, new Map([['x', 8n]]));
   });
+  function backingGraph() {
+    const buffer = new ArrayBuffer(32); new Uint8Array(buffer).set(Array.from({ length: 32 }, (_, i) => i));
+    const bytes = new Uint8Array(buffer, 4, 12), words = new Uint16Array(buffer, 8, 4), view = new DataView(buffer, 6, 8);
+    const graph = { buffer, bytes, words, view, duplicate: bytes, map: new Map([[buffer, bytes]]), set: new Set([buffer, words]) }; graph.self = graph; return graph;
+  }
+  function assertBackingGraph(actual) {
+    assert.equal(actual.self, actual); assert.equal(actual.duplicate, actual.bytes); assert.equal(actual.bytes.buffer, actual.buffer); assert.equal(actual.words.buffer, actual.buffer); assert.equal(actual.view.buffer, actual.buffer);
+    assert.equal(actual.buffer.byteLength, 32); assert.equal(actual.bytes.byteOffset, 4); assert.equal(actual.bytes.length, 12); assert.equal(actual.words.byteOffset, 8); assert.equal(actual.words.length, 4); assert.equal(actual.view.byteOffset, 6); assert.equal(actual.view.byteLength, 8);
+    assert.equal(actual.map.get(actual.buffer), actual.bytes); assert.equal(actual.set.has(actual.buffer), true); assert.equal(actual.set.has(actual.words), true);
+    assert.deepEqual([...new Uint8Array(actual.buffer)], Array.from({ length: 32 }, (_, i) => i));
+  }
+  function binaryPair({ shared = true, offset = 4, outside = 7 } = {}, raw = false) {
+    const backing = new ArrayBuffer(24); new Uint8Array(backing).fill(7); new Uint8Array(backing)[0] = outside;
+    const second = shared ? backing : backing.slice(0), first = raw ? backing : new Uint8Array(backing, offset, 4), other = raw ? second : new Uint8Array(second, offset, 4);
+    const result = { first, second: other, duplicate: first, map: new Map([['first', first], ['second', other]]) }; result.self = result; return result;
+  }
+  function assertBinaryPair(actual, { shared = true, offset = 4, outside = 7 } = {}, raw = false) {
+    assert.equal(actual.self, actual); assert.equal(actual.duplicate, actual.first); assert.equal(actual.map.get('first'), actual.first); assert.equal(actual.map.get('second'), actual.second);
+    const first = raw ? actual.first : actual.first.buffer, second = raw ? actual.second : actual.second.buffer;
+    assert.ok(first instanceof ArrayBuffer); assert.ok(second instanceof ArrayBuffer); assert.equal(first === second, shared);
+    for (const buffer of [first, second]) { assert.equal(buffer.byteLength, 24); assert.deepEqual([...new Uint8Array(buffer)], [outside, ...Array(23).fill(7)]); }
+    if (!raw) for (const view of [actual.first, actual.second]) { assert.ok(view instanceof Uint8Array); assert.equal(view.byteOffset, offset); assert.equal(view.length, 4); assert.deepEqual([...view], [7, 7, 7, 7]); }
+  }
+  run('one value retains detached shared private backing across overlapping views and containers', async store => {
+    const source = backingGraph();
+    await store.transact(async tx => {
+      await tx.set('source/backing', source); new Uint8Array(source.buffer).fill(255);
+      const staged = await tx.get('source/backing'); assertBackingGraph(staged); assert.notEqual(staged.buffer, source.buffer);
+      staged.bytes[2] = 200; assert.equal(staged.view.getUint8(0), 200); assert.equal(new Uint8Array(staged.buffer)[6], 200); assertBackingGraph(await tx.get('source/backing'));
+    });
+    const point = await store.read(tx => tx.get('source/backing')); assertBackingGraph(point);
+    const [first, second] = await store.read(tx => tx.getMany(['source/backing', 'source/backing'])); assertBackingGraph(first); assertBackingGraph(second); assert.notEqual(first.buffer, second.buffer);
+    const scanned = await store.read(tx => tx.scan({ prefix: 'source/backing' })); assertBackingGraph(scanned[0].value);
+    point.bytes[2] = 201; assertBackingGraph(await store.read(tx => tx.get('source/backing')));
+  });
+  run('equal visible bytes still commit backing splits merges offsets and unseen backing edits', async store => {
+    for (const raw of [false, true]) {
+      const key = raw ? 'source/raw-pair' : 'source/view-pair', initial = binaryPair({}, raw);
+      await seed(store, [[key, initial]]); let previous = initial;
+      const cases = raw ? [{ shared: false }, { shared: true }] : [{ shared: false }, { shared: true }, { shared: true, offset: 8 }, { shared: true, offset: 8, outside: 42 }];
+      for (const expected of cases) {
+        const source = binaryPair(expected, raw); assert.deepEqual(previous, source); let published;
+        await store.transact(async tx => { await tx.set(key, source); assertBinaryPair(await tx.get(key), expected, raw); }, { beforeCommit: ({ changes }) => { published = changes; } });
+        assert.equal(published.length, 1); assert.equal(published[0].type, 'set'); assert.equal(published[0].key, key); assertBinaryPair(published[0].value, expected, raw);
+        const actual = await store.read(tx => tx.get(key)); assertBinaryPair(actual, expected, raw); previous = source;
+        const [one, two] = await store.read(tx => tx.getMany([key, key])); assertBinaryPair(one, expected, raw); assertBinaryPair(two, expected, raw); assert.notEqual(raw ? one.first : one.first.buffer, raw ? two.first : two.first.buffer);
+      }
+      const exact = await store.read(tx => tx.get(key)); let published;
+      await store.transact(tx => tx.set(key, exact), { beforeCommit: ({ changes }) => { published = changes; } }); assert.deepEqual(published, []);
+    }
+  });
+  run('shared and resizable backing reject atomically through nested views and containers', async store => {
+    const shared = new SharedArrayBuffer(16), values = [new Uint8Array(shared), { nested: new Set([new DataView(shared)]) }];
+    if (typeof ArrayBuffer.prototype.resize === 'function') { const resizable = new ArrayBuffer(16, { maxByteLength: 32 }); values.push(resizable, new Map([['tracking', new Uint8Array(resizable)]])); }
+    for (const value of values) {
+      await assert.rejects(store.transact(async tx => { await tx.set('source/partial', true); await tx.set('source/invalid-backing', value); }), { code: 'INVALID_VALUE' });
+      assert.equal(await store.read(tx => tx.get('source/partial')), undefined); assert.equal(await store.read(tx => tx.get('source/invalid-backing')), undefined);
+    }
+  });
   run('callback and hook abort every application namespace atomically', async store => {
     const expected = namespaces.map(prefix => [prefix + 'base', { n: 1n }]); await seed(store, expected);
     for (const phase of ['callback', 'hook']) {
@@ -61,6 +120,12 @@ export function registerKvConformance(name, open, { receipts = false } = {}) {
     }, { beforeCommit: ({ changes }) => { published = changes; } });
     assert.deepEqual(published, []); assert.deepEqual(await snapshot(store), [{ key: 'source/a', value: { n: 1n } }]);
   });
+  run('ordinary object map and set ordering retains existing no-op behavior', async store => {
+    const original = { first: 1, second: 2, map: new Map([['first', 1], ['second', 2]]), set: new Set(['first', 'second']) }, reordered = { set: new Set(['second', 'first']), map: new Map([['second', 2], ['first', 1]]), second: 2, first: 1 }; let published;
+    await seed(store, [['source/ordinary', original]]);
+    await store.transact(tx => tx.set('source/ordinary', reordered), { beforeCommit: ({ changes }) => { published = changes; } }); assert.deepEqual(published, []);
+    const actual = await store.read(tx => tx.get('source/ordinary')); assert.deepEqual(Object.keys(actual), ['first', 'second', 'map', 'set']); assert.deepEqual([...actual.map.keys()], ['first', 'second']); assert.deepEqual([...actual.set], ['first', 'second']);
+  });
   run('UTF8 NUL and bounded ordering follows independent byte comparisons', async store => {
     const keys = ['a', 'a\0', 'a\0x', 'a1', 'a2', 'z', '\uE000', '😀']; await seed(store, keys.map(key => [key, key]));
     for (const range of [{}, { prefix: 'a\0' }, { prefix: 'a', gt: 'a', lte: 'a2', limit: 2 }, { gte: 'a\0', lt: 'z' }, { gt: 'z', limit: 1 }]) {
@@ -80,6 +145,23 @@ export function registerKvConformance(name, open, { receipts = false } = {}) {
     await assert.rejects(saved.get('x'), { code: 'TRANSACTION_CLOSED' });
     for (const key of ['', '\uD800', 1]) await assert.rejects(store.read(tx => tx.get(key)), { code: 'INVALID_KEY' });
     await assert.rejects(store.read(tx => tx.scan({ limit: -1 })), { code: 'INVALID_RANGE' });
+  });
+  if (receipts) run('original binary receipt preserves private shared backing without sharing later disclosures', async store => {
+    const result = backingGraph(), receipt = { id: 'binary-original', digest: 'same-original' }; let calls = 0, acknowledged;
+    await store.transact(tx => { calls++; return result; }, { receipt, afterCommit: ({ receipt }) => { acknowledged = receipt.result; } }); assertBackingGraph(acknowledged);
+    const original = await store.getReceipt(receipt.id); assertBackingGraph(original.result); assert.notEqual(original.result.buffer, result.buffer);
+    original.result.bytes[2] = 222;
+    const replay = await store.transact(() => { calls++; throw Error('Original callback must not run'); }, { receipt }); assertBackingGraph(replay); assert.equal(calls, 1);
+    assertBackingGraph((await store.getReceipt(receipt.id)).result);
+  });
+  if (receipts) run('binary alias-only updates and their original receipts retain separate committed graphs', async store => {
+    await seed(store, [['source/receipt-pair', binaryPair()]]); let calls = 0;
+    for (const shared of [false, true]) {
+      const receipt = { id: shared ? 'binary-merge' : 'binary-split', digest: 'binary-update' }, result = await store.transact(async tx => { calls++; await tx.set('source/receipt-pair', binaryPair({ shared })); return tx.get('source/receipt-pair'); }, { receipt });
+      assertBinaryPair(result, { shared }); assertBinaryPair(await store.read(tx => tx.get('source/receipt-pair')), { shared }); assertBinaryPair((await store.getReceipt(receipt.id)).result, { shared });
+      assertBinaryPair(await store.transact(() => { calls++; throw Error('Original callback must not run'); }, { receipt }), { shared });
+    }
+    assert.equal(calls, 2); assertBinaryPair((await store.getReceipt('binary-split')).result, { shared: false }); assertBinaryPair((await store.getReceipt('binary-merge')).result, { shared: true }); assertBinaryPair(await store.read(tx => tx.get('source/receipt-pair')), { shared: true });
   });
   if (receipts) run('original receipt digest replay authorization and unknown acknowledgement', async store => {
     const receipt = { id: 'original', digest: 'request-one' }; let calls = 0;

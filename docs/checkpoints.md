@@ -1,7 +1,9 @@
 # Checkpoints and acceptance gates
 
 **R1–R5, optional SQLite D1, D1F, D2a, D2b, D3, D4 and D5 are accepted.**
-The durable primary is FoundationDB. One Node service accepts writes and may
+The post-D5 review corrections are accepted on2026-11-19:606 tests passed on
+Node24.22.1 with the real native backend and installed release; see the corrective
+gate below. The durable primary is FoundationDB. One Node service accepts writes and may
 execute disjoint transactions concurrently through the ordered transactional KV
 adapter. SQLite remains an optional serialized adapter. This roadmap starts from `8f337cd`, which includes
 fixture-authorized reads and mutations. R1–R5 supersede the pending named-view,
@@ -302,6 +304,34 @@ sessions/proofs/cursors reject. Faulted/incomplete backups never replace the act
 installation. Release smoke and measured capacity include dataset/runtime/limits.
 Online catalog migration, multi-host writes, recurrence/frontend/full domain suites
 retain separate explicit acceptance and are not prerequisites for this release.
+
+## Post-D5 review — corrective acceptance
+
+**Accepted 2026-11-19.** The review against `3ce9f35` reopened concurrency,
+recovery and value-contract obligations. Fresh Node24.22.1/npm11.19.1 verification
+ran `npm test` through the hosted-job helper against an owned FoundationDB7.3.81
+cluster and a separately packed, extracted, locked-installed release:606 passed,
+zero failed/skipped/cancelled. Eighty added registrations check:
+
+- Independent due effects after failed application, retained facts/no resend,
+  local custody/proof diagnosis, stale error cleanup and lowered proof policies.
+- Exclusive raw/authorized cursor resume, failed-read retry, exact private backing
+  aliases/offsets and alias-only writes on every adapter; exact NUL-extended namespaces.
+- No-replace initializer publication and post-publication unknown recovery,
+  concurrent object promotion, paged complete inventories and configured restart
+  at10000/10001 valid sources; HTTP admission and worker/foreground overlap.
+- The supplied referenced-schema controls plus ref chains/composition/resources
+  and late path terminals through the same prepared Ajv catalog.
+
+The hosted workflow adds a mandatory real-backend/release job, verifies native
+Debian artifact digests and rejects skips. Its exact helper path was verified
+locally; hosted execution is separate evidence. See
+[corrective evidence](evidence/2026-11-19-review-corrections.json).
+Ordinary V8 historical rows remain readable but lost old alias information is
+unrecoverable. Binary graph traversal-order changes can cause extra writes.
+Schema compatibility is conservative type exclusion, not arbitrary satisfiability.
+Paged checks remain bounded complete scans. Live delivery, replication, power loss,
+remote TLS/hosting and larger capacity remain separate acceptance obligations.
 
 ### Checkpoint method
 

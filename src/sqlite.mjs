@@ -1,8 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
-import { serialize, deserialize } from 'node:v8';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { isDeepStrictEqual } from 'node:util';
 import { copyKvData as copy, checkKvKey, compareKvKeys as compare } from './kv-data.mjs';
+import { encodeKvData, decodeKvData, sameKvData } from './values.mjs';
 
 const context=new AsyncLocalStorage(),format='kv-base-node-v8-1';
 const error=(code,message,cause)=>Object.assign(new Error(message,cause?{cause}:undefined),{code});
@@ -12,8 +11,8 @@ function fields(value,allowed){
   if(!value||typeof value!=='object'||![Object.prototype,null].includes(Object.getPrototypeOf(value)))throw error('INVALID_OPTIONS','Expected ordinary options');
   for(const name of Reflect.ownKeys(value)){const d=Object.getOwnPropertyDescriptor(value,name);if(typeof name!=='string'||!allowed.includes(name)||!d.enumerable||!Object.hasOwn(d,'value'))throw error('INVALID_OPTIONS','Invalid option descriptor');}
 }
-const encode=value=>serialize(copy(value));
-function decode(value){try{if(!(value instanceof Uint8Array))throw Error('Expected bytes');return copy(deserialize(value));}catch(cause){throw error('CORRUPT_STATE','Invalid persisted value',cause);}}
+const encode=encodeKvData;
+function decode(value){try{return decodeKvData(value);}catch(cause){throw error('CORRUPT_STATE','Invalid persisted value',cause);}}
 function range(options={}){
   fields(options,['prefix','gte','gt','lte','lt','limit']);const result={};
   for(const name of ['prefix','gte','gt','lte','lt'])if(options[name]!==undefined)result[name]=name==='prefix'&&options[name]===''?'':checkKvKey(options[name]);
@@ -85,7 +84,7 @@ export function openSqliteStore(filename,options={}){
         try{db.exec(readOnly?'BEGIN':'BEGIN IMMEDIATE');begun=true;}catch(cause){if(conflict(cause))throw error('STORAGE_CONFLICT','Database is locked',cause);throw cause;}
         if(fixed.receipt){metrics.sqlReads++;const prior=receiptGet.get(key(fixed.receipt.id));if(prior){const value=storedReceipt(prior.v,fixed.receipt.id);if(value.digest!==fixed.receipt.digest)throw error('RECEIPT_MISMATCH','Operation identity has another digest');if(fixed.verifyReplay)await fixed.verifyReplay(facade(true),copy(value));open=false;db.exec('COMMIT');committed=true;return copy(value.result);}}
         const result=await callback(facade());
-        const changes=[];for(const [name,entry] of overlay){const previous=load(name);if(entry.exists){if(!previous.exists||!isDeepStrictEqual(previous.value,entry.value))changes.push({type:'set',key:name,value:entry.value});}else if(previous.exists)changes.push({type:'delete',key:name});}
+        const changes=[];for(const [name,entry] of overlay){const previous=load(name);if(entry.exists){if(!previous.exists||!sameKvData(previous.value,entry.value))changes.push({type:'set',key:name,value:entry.value});}else if(previous.exists)changes.push({type:'delete',key:name});}
         const receipt=fixed.receipt?{...fixed.receipt,result:copy(result)}:undefined,receiptBytes=receipt?encode(receipt):undefined;
         open=false;
         for(const change of changes){if(change.type==='set')put.run(key(change.key),encode(change.value));else remove.run(key(change.key));metrics.sqlWrites++;}

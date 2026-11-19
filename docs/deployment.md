@@ -34,7 +34,12 @@ The external deployment descriptor is:
 }
 ```
 
-`writeDeployment` creates the initial descriptor; restore publishes a new one.
+`writeDeployment` atomically creates the initial descriptor only if absent; exactly
+one concurrent initializer wins. It links an already fsynced staged file before
+removing the staging name. A committed descriptor with two private publication links
+remains readable after interruption; custody files retain their single-link rule.
+Errors after publication are unknown acknowledgements: inspect the selected descriptor.
+Restore publishes a new descriptor only after candidate verification.
 Open the installation with `openSelfHosted`, supplying that descriptor/file, one
 catalog, the private keyring file, username mapping, operator contacts, delivery
 channels and provider clients. The opener admits no HTTP or workers by default.
@@ -48,10 +53,19 @@ bootstrap, enrollment, policy or secret endpoint exists.
 After bootstrap, call `start({host:'127.0.0.1',port:8080})`. A service manager can run
 an operator-owned ordinary ESM entry module that imports these functions and the
 private configuration; no custom application CLI is needed. Handle SIGTERM/SIGINT
-with `await runtime.close()`. The runtime stops admission and drains admitted HTTP,
+with `await runtime.close()`. The runtime registers HTTP admission before reading
+JSON or upload bytes, then drains that admitted work before maintenance. Its timer
+tracks an active worker poll separately from foreground requests and uploads.
+The runtime stops admission and drains admitted HTTP,
 uploads and registered provider work before closing storage. Health exposes only a
 sanitized status. Keep privileged source/worker/inspection APIs inside that process;
 use the runtime's registered worker admission when serving requests.
+Configure `objectCheckLimits` on `openSelfHosted` for retained inventories and file
+bytes at bootstrap/start. The four positive bounds are `maxSources`, `maxRows`,
+`maxFiles` and `maxBytes`; defaults are10000 and256MiB. Cleaned version history
+still consumes row budget. Source/row scans use at most128-key pages per snapshot.
+Increase these declared budgets before growth reaches them; native transaction
+lifetime, total memory and full engine checks remain separate limits.
 
 Expose the loopback service through the host's chosen TLS proxy and keep one active
 write ingress. Public routes use Bearer sessions, fixed model allowlists and

@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a, D2b, D3, D4 and D5 are accepted.** The implementation baseline is
+**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a, D2b, D3, D4, D5 and post-D5 review corrections are accepted.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -209,6 +209,37 @@ coordination across operator processes is deferred. Raw retained privileged hand
 must obey the writer pause. Full accounting, recurrence, temporal wakeups, live
 feeds, frontend, online migration and reactive rank windows remain deferred.
 No persisted Rust-format compatibility or automatic database migration is promised.
+
+## Post-D5 review correction acceptance
+
+The review of `3ce9f35` exposed gaps outside the original526-test suite. Fresh
+corrective verification on2026-11-19 passed **606 tests**, zero failures/skips/
+cancellations, Node24.22.1/npm11.19.1. The same new CI helper created an owned
+FoundationDB7.3.81 server, built and checked a source release, packed/extracted it,
+restored the exact lock and ran its installed runtime alongside `npm test`.
+Native Debian digests match D1F. See
+[corrective evidence](docs/evidence/2026-11-19-review-corrections.json).
+
+Eighty new registrations reproduce/fix failed-application queue starvation,
+cursor duplicate successors, initializer replacement, durable backing loss and
+alias-only suppressed writes, promotion/recovery races, bounded restart budgets,
+foreground worker starvation and pre-pause JSON admission, escaped-NUL namespace
+overlap, local recovery diagnosis, lowered proof starts/attempts, referenced-schema
+roles and post-rename lost acknowledgement. The supplied three schema controls are
+included in12 independent catalog cases. The pasted harbor snippet omitted its
+catalog/calculation definition; its exact external script was not available locally.
+Existing independent structural/path/authority/recompute controls remain passing.
+
+Corrected source hash is
+`b95c6d198f6a2ac39f1b387028c04580d12eb07700c0bc6f19d01c96c0c60e14`.
+Earlier gate counts/hashes describe their original commits. The correction keeps
+physical namespaces and original receipt bytes, reads old ordinary V8 data and
+uses a tagged codec for new values. Old writers' lost alias topology cannot be
+reconstructed. Shared/resizable backing is unsupported; binary graph codec-order
+changes may write more than ordinary deep-equal JSON. Schema type checking remains
+conservative; full scans and native transaction lifetime bound restart/backup size.
+Hosted CI runs require their own observation; live providers, replicated/power-loss
+recovery, remote deployment and large capacity retain the limits above.
 
 ## Working method
 

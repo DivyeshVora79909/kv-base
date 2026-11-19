@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { Serializer, Deserializer, deserialize } from 'node:v8';
+import { isDeepStrictEqual } from 'node:util';
+import { copyKvData } from './kv-data.mjs';
 
 export function fail(code, message) {
   throw Object.assign(new Error(message), { code });
@@ -109,4 +112,52 @@ export function selectValue(record, selector) {
   const object = field ? record.data : record;
   const key = field ? selector.field : selector.header;
   return { present: Object.hasOwn(object, key), value: object[key] };
+}
+
+const valueHeader = Buffer.from('kv-base-value-2\0');
+const viewNames = ['Int8Array', 'Uint8Array', 'Uint8ClampedArray', 'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float16Array', 'Float32Array', 'Float64Array', 'BigInt64Array', 'BigUint64Array', 'DataView'];
+class ValueSerializer extends Serializer {
+  constructor() { super(); this._setTreatArrayBufferViewsAsHostObjects(true); }
+  _writeHostObject(view) {
+    const type = ArrayBuffer.isView(view) ? viewNames.indexOf(view.constructor.name) : -1;
+    if (type < 0 || view.byteOffset > 0xffffffff || view.byteLength > 0xffffffff) fail('INVALID_VALUE', 'Unsupported binary view');
+    this.writeUint32(type); this.writeUint32(view.byteOffset); this.writeUint32(view.byteLength); this.writeValue(view.buffer);
+  }
+}
+class ValueDeserializer extends Deserializer {
+  _readHostObject() {
+    const type = this.readUint32(), offset = this.readUint32(), bytes = this.readUint32(), buffer = this.readValue(), name = viewNames[type], constructor = globalThis[name];
+    if (typeof constructor !== 'function' || !(buffer instanceof ArrayBuffer) || buffer.resizable || offset > buffer.byteLength || bytes > buffer.byteLength - offset) fail('INVALID_VALUE', 'Invalid encoded binary view');
+    if (name === 'DataView') return new DataView(buffer, offset, bytes);
+    if (offset % constructor.BYTES_PER_ELEMENT || bytes % constructor.BYTES_PER_ELEMENT) fail('INVALID_VALUE', 'Misaligned encoded binary view');
+    return new constructor(buffer, offset, bytes / constructor.BYTES_PER_ELEMENT);
+  }
+}
+/** V8 keeps object identities; view hooks retain the actual backing reference
+ * instead of V8 DefaultSerializer's separately copied byte slices. */
+export function encodeKvData(value) {
+  const serializer = new ValueSerializer(); serializer.writeHeader(); serializer.writeValue(copyKvData(value));
+  return Buffer.concat([valueHeader, serializer.releaseBuffer()]);
+}
+export function decodeKvData(bytes) {
+  if (!(bytes instanceof Uint8Array)) fail('INVALID_VALUE', 'Expected encoded bytes');
+  const encoded = Buffer.from(bytes);
+  if (!encoded.subarray(0, valueHeader.length).equals(valueHeader)) return copyKvData(deserialize(encoded));
+  const decoder = new ValueDeserializer(encoded.subarray(valueHeader.length)); decoder.readHeader(); return copyKvData(decoder.readValue());
+}
+
+function hasBinaryBacking(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object' || seen.has(value)) return false;
+  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return true;
+  seen.add(value);
+  if (value instanceof Map) for (const [key, entry] of value) if (hasBinaryBacking(key, seen) || hasBinaryBacking(entry, seen)) return true;
+  if (value instanceof Set) for (const entry of value) if (hasBinaryBacking(entry, seen)) return true;
+  return Object.values(value).some(entry => hasBinaryBacking(entry, seen));
+}
+/** Retain ordinary no-op semantics; binary graphs also compare their observable
+ * aliases, offsets and full backing bytes. Codec traversal order can stage writes. */
+export function sameKvData(left, right) {
+  if (!isDeepStrictEqual(left, right)) return false;
+  if (!hasBinaryBacking(left) && !hasBinaryBacking(right)) return true;
+  return encodeKvData(left).equals(encodeKvData(right));
 }

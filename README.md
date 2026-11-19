@@ -49,7 +49,9 @@ explicit bootstrap, draining shutdown and a checked self-hosted Linux source rel
 are implemented. Fresh D5 verification passed526 tests, zero failed/skipped, including
 an extracted, locked-install subprocess start/stop/reopen.
 
-Fresh R1–R5 engine and D1–D5 durable/operational verification is recorded in the
+Post-D5 review corrections passed606 tests with zero skips/failures on Node24.22.1
+against a real FoundationDB target and an installed release. R1–R5, D1–D5 and
+corrective verification are recorded in the
 [handoff](CONTEXT.md) and [checkpoint evidence](docs/checkpoints.md). Primary-target
 tests require an owned FoundationDB cluster and its native client library:
 
@@ -62,6 +64,10 @@ Absent a selected cluster, real-target tests skip and do not establish acceptanc
 The installed release smoke also requires `KV_BASE_RELEASE_PACKAGE` pointing to
 a checked extracted package after its locked `npm ci`; see
 [Linux deployment](docs/deployment.md) for release and custody setup.
+Hosted CI additionally runs `node test/helpers/verified-environment.mjs`, creating
+its own native cluster and locked installed release and rejecting skipped tests.
+Run that same helper locally with absolute `KV_BASE_FDB_SERVER` and
+`KV_BASE_FDB_CLI` paths to the verified7.3.81 artifacts and its native library path.
 MIT licensed; see [LICENSE](LICENSE).
 [.nvmrc](.nvmrc) selects the Node 24 baseline. Hosted CI results are separate from
 this local verification. Live provider delivery, replicated failure, power loss,

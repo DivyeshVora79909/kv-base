@@ -452,6 +452,29 @@ authority or a portability wrapper before a real requirement. Use Node built-ins
 test runner, async orchestration and resource measurement. Authoring is trusted ESM
 plus standard schemas; arbitrary closures are not a portable wire configuration.
 
+Post-D5 corrections retain that boundary. All model schemas register in the same
+Ajv before binding preparation; explicit referenced/composed wire types can exclude
+an incompatible role without creating another validator. Durable view-aware codecs
+retain private backing graphs and exact offsets; ordinary JSON no-op rules remain
+unchanged, while binary graphs compare codec bytes. Exact tuple namespace bounds
+exclude escaped-NUL extensions without changing stored key addresses.
+
+Cursor resume admission reserves one handle until storage succeeds or fails; only
+successful publication consumes it and creates a successor. HTTP admission registers
+before body I/O, so quiescence preserves work it already accepted. Periodic workers
+do not wait for unrelated foreground work. An accepted provider fact survives failed
+application, receives a future retry time and cannot cause another send. Local
+credential/start corruption remains distinct from transport uncertainty and error
+cleanup is fenced to its lease. Historical proof counters validate independently of
+current policy limits.
+
+Initial descriptor publication is a no-replace link of a complete fsynced file;
+post-publication failures report unknown acknowledgement. Object promotion recovery
+rechecks the exact destination when a stage disappears. Complete object checks page
+their source/retained-row reads and use explicit deployment budgets; neither paging
+nor higher budgets establishes unlimited restart capacity. Hosted CI now selects
+the real native backend and locked extracted release and rejects skipped tests.
+
 FoundationDB is the selected primary persistent adapter after fresh D1F Node/native
 conformance. SQLite is optional and serialized. Existing Rust adapters are references,
 not ready Node APIs. The accepted topology is one writable Node service with concurrent
