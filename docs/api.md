@@ -803,7 +803,10 @@ Each successful session operation retains its encrypted original result under th
 request identity and a keyed digest of the exact request, including any password
 proof. A lost acknowledgement reports the adapter's `COMMIT_UNKNOWN`; repeating
 that identity recovers the original result and does not mint another session or
-repeat source writes. Changed requests reject. Recovered login results require the
+repeat source writes. Changed requests reject. Changed-password guesses against an
+existing successful login operation consume the bounded failure allowance; exact
+mismatch retries do not recount. A lock prevents release of the original successful
+result until expiry. Recovered login results require the
 original session to remain valid. An old incarnation's result cannot be released
 after restore; a fresh operation can authenticate against restored credentials.
 
@@ -852,3 +855,63 @@ A replacement session cannot resume an old session's cursor even if actor/grants
 and source data are unchanged. Password changes and live incarnation rotation
 also reject old cursors. Unrelated source writes still allow progress with the
 same session. The callback and fence values are never wire query/options fields.
+
+## Durable effects and provider custody (D3)
+
+Merge `...effectModels()` into the application's one `prepareCatalog` definition.
+`Credential`, `CredentialRevision`, `Effect`, `EffectAttempt` and `EffectFact` are
+ordinary private source models. `EFFECT_QUEUE` and `EFFECT_STARTS` are structural
+signatures with tuple order bounds. Explicit Credential Use is required; Admin
+does not grant Use. Retained revisions keep their original owners and encryption keys.
+
+`createCredentialCustody({catalog,keyring,getAuthority,clock,grantMs})` supplies
+privileged `storeRevision(tx,context,{id,owner?,provider,secret})`,
+`revoke(tx,context,{id,revision?})` and request-bound grants. Revision secrets and
+accepted requests persist as authenticated ciphertext. Request identity uses keyed
+HMAC bound to tenant, effect and credential revision, protecting low-entropy proof
+codes from offline guesses using database contents. Initial and final authority
+checks include both current and retained-revision owner scope.
+
+`acceptEffectInTransaction(tx,catalog,context,intent,{custody,providers,clock})`
+accepts `{id,owner?,provider,protocolVersion:'1',operation,credentialId,
+credentialRevision,request,rate:{limit,windowMs}}`. Email requests are
+`{from,to:[email],subject,text}`; SMS requests are `{to:E164,text}`. Unsupported
+protocol/operation/schema/byte limits reject before acceptance. Compose this call
+with domain mutations and the original operation receipt in one `engine.transact`.
+It returns `{effectId,providerOperationId}` to the host; the operation identity is
+immutable. No public route accepts custody/context/provider configuration.
+
+`createEffectWorker({engine,custody,providers,workerId,clock,leaseMs,apply})`
+exposes privileged `claim`, `start`, `recordResult`, `runOne`, `reconcile`, `apply`,
+`drain` and `cancel`. Start commits a monotone lease epoch, exact request/revision
+proof and admission charge before network I/O. The rate interval is
+`(now-windowMs,now]`, including time zero when in range. A committed admission can
+retain its charge after death before dispatch. Callbacks do not silently retry.
+Existing starts require recovery and never send again directly.
+
+Provider calls execute outside transactions. Immutable accepted/rejected/unknown/
+fenced-absent facts retain the original operation, attempt and observer epoch.
+Stale observations cannot select application. `apply(tx,{effect,fact})` returns
+source commands; domain changes and the applied marker commit atomically. Failed
+validation retains the accepted fact for application retry without a new send.
+`drain` includes facts awaiting application and has finite job/read budgets.
+
+Unknown outcomes require lookup under the original key and retained credential.
+Absent lookup alone cannot make an obsolete delayed start safe. Fake transports
+provide an explicit durable fence-and-lookup protocol; live Brevo has no inferred
+lookup/idempotency/fencing. Unreconcilable work remains unknown or isolated.
+Cancellation before admission prevents a send; cancellation after admission cannot
+promise suppression of external success, and accepted work may still apply.
+
+`createEmailProvider({protocol:'resend'|'brevo',baseUrl,...})` implements distinct
+HTTP payloads and authentication headers. `createSmsProvider({protocol:'brevo',...})`
+uses an E164 recipient and host-selected sender. `createFakeEmailClient`,
+`createFakeSmsClient` and `createFakeProviderServer` are test/demo transports with
+an independently durable external ledger. Fresh fake delivery/crash evidence does
+not certify live provider acceptance. External keys are host supplied; transient
+JavaScript secret strings are not memory-erasure evidence.
+
+`identity.getAuthorityInTransaction(tx)` and
+`identity.inspectActorInTransaction(tx,actor)` are privileged host composition
+helpers. The latter requires an active enrolled User and authenticates stored
+credential integrity, returning `{tenant,actor,credentialRevision}` without a secret.

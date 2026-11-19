@@ -114,6 +114,13 @@ single canonical model requirement by themselves.
 
 ## Prototype versus production acceptance
 
+Fresh local D1/D1F/D2a/D3 evidence now covers optional SQLite, primary concurrent
+FoundationDB, encrypted opaque identity sessions and durable provider effects.
+These results use the current Node sources, not the predecessor counts. Delivered
+email/phone proofs, authenticated object/service pipeline and selected Linux
+backup/restore/release remain subsequent gates. Live provider certification,
+replicated failure, power loss and larger capacity remain unaccepted.
+
 The original JS-P1–JS-P5 plan below records which obligations the prototype took
 from the native baseline. The [active roadmap](checkpoints.md) carries the
 R1–R5 redesign, now locally accepted, and separates later durable/service gates.

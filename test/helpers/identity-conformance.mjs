@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDecipheriv, hkdfSync, scryptSync } from 'node:crypto';
-import { prepareCatalog, canonical, readAuthorizedInTransaction } from '../../src/index.mjs';
+import { prepareCatalog, canonical, readAuthorizedInTransaction, resolveAuthority } from '../../src/index.mjs';
 import { createEngine } from '../../src/lifecycle.mjs';
 import { createKeyring } from '../../src/keyring.mjs';
 import { createIdentity } from '../../src/identity.mjs';
@@ -55,6 +55,33 @@ export async function prepareIdentityFixture(t, options, backend) {
 
 export function registerIdentityConformance(name, fixture) {
   const witness = (label, callback) => test(name + ' identity: ' + label, callback);
+  witness('private host providers use the same current graph and enrolled credential revision without a bearer', async t => {
+    const f = await fixture(t);
+    const prepared = await f.engine.read(tx => f.identity.getAuthorityInTransaction(tx));
+    assert.equal(resolveAuthority(prepared, { tenant: 't', actor: 'admin' }).grants.admin, true);
+    assert.deepEqual(await f.engine.read(tx => f.identity.inspectActorInTransaction(tx, 'reader')), { tenant: 't', actor: 'reader', credentialRevision: '1' });
+    await assert.rejects(f.engine.read(tx => f.identity.inspectActorInTransaction(tx, 'unknown')), { code: 'UNAUTHENTICATED' });
+    await assert.rejects(f.engine.read(tx => f.identity.inspectActorInTransaction(tx, 'visible')), { code: 'UNAUTHENTICATED' });
+    const revoked = graph(); revoked.principals.find(node => node.id === 'reader').active = false; await f.identity.replacePolicy(revoked);
+    await assert.rejects(f.engine.read(tx => f.identity.inspectActorInTransaction(tx, 'reader')), { code: 'UNAUTHENTICATED' });
+    const current = await f.engine.read(tx => f.identity.getAuthorityInTransaction(tx));
+    assert.throws(() => resolveAuthority(current, { tenant: 't', actor: 'reader' }), { code: 'FORBIDDEN' });
+    await f.identity.replacePolicy(graph()); const session = await login(f);
+    await f.identity.changePassword(session.token, { oldPassword: password, newPassword: replacement, operationId: 'private-provider-password' });
+    assert.deepEqual(await f.engine.read(tx => f.identity.inspectActorInTransaction(tx, 'reader')), { tenant: 't', actor: 'reader', credentialRevision: '2' });
+  });
+  witness('original successful login password guesses consume bounded durable attempts once and lock result release', async t => {
+    const f = await fixture(t), original = await login(f), guesses = ['a first guessed reader password', 'a second guessed reader password', 'a third guessed reader password'];
+    const request = guessed => ({ actor: 'reader', password: guessed, operationId: 'login-reader' });
+    for (let n = 0; n < 2; n++) await assert.rejects(f.identity.login(request(guesses[0])), { code: 'RECEIPT_MISMATCH' });
+    assert.equal((await f.engine.read(tx => tx.scan())).find(row => row.key.includes('/failure/')).value.count, 1);
+    for (const guess of guesses.slice(1)) await assert.rejects(f.identity.login(request(guess)), { code: 'RECEIPT_MISMATCH' });
+    await f.store.close(); await f.open(); const before = await f.engine.read(tx => tx.scan());
+    await assert.rejects(f.identity.login(request('a fourth guessed reader password')), { code: 'UNAUTHENTICATED' }); await assert.rejects(login(f), { code: 'UNAUTHENTICATED' });
+    assert.deepEqual(await f.engine.read(tx => tx.scan()), before); assert.equal((await rows(f, original.token)).records[0].id, 'a');
+    const counter = before.find(row => row.key.includes('/failure/')).value; f.time = counter.lockedUntil + 1;
+    assert.deepEqual(await login(f), original); assert.equal((await f.engine.read(tx => tx.scan())).filter(row => row.key.includes('/session/')).length, 1);
+  });
   witness('password envelopes independently verify scrypt and durable state contains no password root key or original bearer plaintext', async t => {
     const f = await fixture(t), issued = await login(f), inventory = await f.engine.read(tx => tx.scan());
     const stored = inventory.find(row => row.key.includes('/credential/') && row.value.actor === 'reader').value;

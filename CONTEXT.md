@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**R1–R5, optional SQLite D1, primary FoundationDB D1F and D2a are accepted; D3 is next.** The implementation baseline is
+**R1–R5, optional SQLite D1, primary FoundationDB D1F, D2a and D3 are accepted; D2b is next.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -142,8 +142,20 @@ cloning or heap usage. Whole-source continuation witnesses are budgeted scans, n
 logarithmic queries. Fixture policy alone is not authentication; the D2a identity
 boundary derives actor/tenant from live opaque sessions.
 
-Next gates retain delivered proof admission; durable
-effect intent, provider fencing and unknown outcomes; object lifecycle/full pipeline;
+ D3 accepted on 2026-11-19: **418 tests passed**, zero failed/skipped, Node26.12.0.
+Thirty-seven independent effect witnesses cover21 primary FDB/16 optional SQLite:
+atomic intent/domain/receipt, retained encrypted revisions, exact quota admission,
+immutable provider identity, unknown reconciliation, external fencing, cancellation,
+worker/provider SIGKILL and concurrent schedules. Four additional shared identity
+regressions bound changed-password recovery guesses and block original result release
+while locked. See [D3 evidence](docs/evidence/2026-11-19-d3.json). D2a was published at
+`66cf23e`; its34 focused post-commit checks passed. Fake Resend/Brevo email and Brevo
+SMS protocols own a separate durable ledger; no real delivery was sent or certified.
+Admission may retain a charge after death before dispatch. External custody keys
+remain operator supplied; memory erasure is not claimed. Restore of an older pending
+effect needs D5 preflight fencing before workers run.
+
+Next gates retain delivered proof admission; object lifecycle/full pipeline;
 release/bootstrap, operational capacity and selected deployment. None is supplied by
 native files or adapters in this repository. Full accounting, recurrence, temporal
 wakeups, live feeds, frontend, online migration and reactive rank windows are deferred.

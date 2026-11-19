@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**D3 is the first unmet gate. R1–R5, optional SQLite D1, D1F and D2a are accepted.**
+**D2b is the first unmet gate. R1–R5, optional SQLite D1, D1F, D2a and D3 are accepted.**
 The durable primary is FoundationDB. One Node service accepts writes and may
 execute disjoint transactions concurrently through the ordered transactional KV
 adapter. SQLite remains an optional serialized adapter. This roadmap starts from `8f337cd`, which includes
@@ -218,6 +218,15 @@ credentials can issue new sessions while pre-restore sessions/proofs stay invali
 No public route accepts an actor, authority provider, encryption key or raw KV access.
 
 ## D3 — Durable effects and provider protocols
+
+**Accepted 2026-11-19.** 418 tests passed, zero failed/skipped, Node26.12.0.
+Thirty-seven new effect witnesses (21 primary FoundationDB,16 optional SQLite)
+use a separately durable provider ledger, exact start reconstruction and source
+checking. SIGKILL covers claim/start/provider success/fact/application and provider
+ledger publication. Concurrent quota, revocation, stale completion and application
+schedules pass. Four shared identity recovery regressions close bounded guessing
+against original successful login receipts. See [D3 evidence](evidence/2026-11-19-d3.json).
+Delivered proof D2b follows; older-backup effect fencing remains D5.
 
 Commit effect intent with business state and receipt. Claim/start evidence, pinned
 credential revision and admission charge precede external execution. Calls occur

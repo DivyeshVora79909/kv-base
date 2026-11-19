@@ -373,6 +373,18 @@ exhaustion returns rejection or incomplete evidence, never a false integrity pas
 
 ## 7. Composition, dependencies and unresolved gates
 
+D3 keeps provider intent, credential revisions, charged starts and facts in ordinary
+models within the same prepared catalog. Request/credential ciphertext and keyed
+request identity remain private. Leases fence database application; external
+fence-and-lookup is additionally needed to stop an obsolete non-idempotent sender.
+An unknown observation never changes the original provider key. Admission is a
+durable permission to start, not a measurement of HTTP dispatch. Cancellation
+retains admitted evidence. Provider facts and their atomic domain application are
+separate commits, allowing application recovery without repeating external work.
+Fake providers own an independent durable ledger; live capability claims require
+their own evidence. Restoring an older pending intent requires an external recovery
+fence, addressed by D5 before restored workers are enabled.
+
 Public surface should represent real capabilities: prepare catalog, transact/read,
 source-derived checking and the R5 lifecycle, population and workload tools.
 Use the same prepared structural catalog for those tools and future RPC handlers. Internal balancing/secret/worker helpers are not remotely callable.
@@ -387,9 +399,10 @@ authority or a portability wrapper before a real requirement. Use Node built-ins
 test runner, async orchestration and resource measurement. Authoring is trusted ESM
 plus standard schemas; arbitrary closures are not a portable wire configuration.
 
-Persistent adapter/client selection (FoundationDB/redb/SurrealKV or another engine)
-is **unresolved** for Node until maintenance, licensing, native bindings and transaction
-conformance are checked. Existing Rust adapters are references, not ready Node APIs.
+FoundationDB is the selected primary persistent adapter after fresh D1F Node/native
+conformance. SQLite is optional and serialized. Existing Rust adapters are references,
+not ready Node APIs. The accepted topology is one writable Node service with concurrent
+native serializable transactions; replicated failure and power loss remain unverified.
 TiKV, B/B+ page rewrites, canonical exact-median trees and native-rank-skip assumptions
 are not selected. No promise JIT matches Rust CPU/memory behavior. Model/system
 metadata should remain opaque typed data so measured hotspots can later move behind
@@ -408,5 +421,5 @@ retained guarantees and missing behaviors; omission from the prototype is not de
 | Exact JSON Schema subset, codecs and supported Node/Ajv versions | JS-P1 compatibility/dependency check; explicit integer/string order baseline above |
 | Reverse-interval reporter and its actual adversarial bound | JS-P3 algorithm witness; never substitute rank-window enumeration or claim a proof from AVL balance |
 | Reuse of current population/workload code versus replacement | R5 demonstrate equivalent constraints with the same prepared catalog; compare maintenance surface |
-| Native Node persistent client and concurrency mapping | After R5; choose only after client support and real adapter conformance review |
+| Native Node persistent client and concurrency mapping | D1F accepted FoundationDB binding2.0.1/API720/native7.3.81; optional SQLite D1; local limits in fresh evidence |
 | Online migration, custom floating/variable-size algebras, reactive rank windows | Outside initial acceptance; require explicit semantics and cost evidence before adding |

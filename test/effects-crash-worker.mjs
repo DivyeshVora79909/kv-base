@@ -1,0 +1,20 @@
+import {openSqliteStore} from '../src/sqlite.mjs';
+import {openFoundationDbStore} from '../src/foundationdb.mjs';
+import {createEngine} from '../src/lifecycle.mjs';
+import {createKeyring} from '../src/keyring.mjs';
+import {prepareAuthority} from '../src/authority.mjs';
+import {sourceKey} from '../src/keys.mjs';
+import {createCredentialCustody,createEffectWorker} from '../src/effects.mjs';
+import {createFakeEmailClient} from '../src/providers.mjs';
+import {prepare} from './effects-fixture.mjs';
+const catalog=prepare(),store=process.env.APP_ADAPTER==='foundationdb'?await openFoundationDbStore({clusterFile:process.env.KV_BASE_FDB_CLUSTER_FILE,prefix:process.env.APP_PREFIX}):openSqliteStore(process.env.APP_DATABASE),engine=createEngine({store,catalog,tenant:'tenant'}),clock=()=>Number(process.env.CLOCK_VALUE);
+const keyring=createKeyring({keys:{root:Buffer.from(process.env.CUSTODY_KEY,'base64')},activeKey:'root'}),custody=createCredentialCustody({catalog,keyring,clock,getAuthority:async tx=>prepareAuthority(catalog,await tx.get('fixture-authority'))});
+const provider=createFakeEmailClient({protocol:'brevo',baseUrl:process.env.PROVIDER_URL}),worker=createEffectWorker({engine,custody,providers:{brevo:provider},clock,leaseMs:10,workerId:'crash-worker',apply:async(tx,{fact})=>[{type:'put',record:{...(await tx.get(sourceKey('tenant','crash'))),data:{status:'delivered',providerId:fact.data.result.providerId}}}]});
+async function pause(phase){process.send({phase});if((process.env.KILL_PHASE??'accepted')===phase)await new Promise(()=>setInterval(()=>{},1000));}
+const token=await worker.claim('effect:crash');await pause('claimed');
+const started=await worker.start(token);await pause('started');
+const secret=custody.open(started.credential),result=await provider.send({operationId:started.effect.data.providerOperationId,request:started.request,secret,fence:token.epoch});secret.fill(0);
+if(result.status!=='accepted')throw Error('Fixture provider did not accept');await pause('accepted');
+await worker.recordResult(token,started.attemptId,result);await pause('fact');
+await worker.apply('effect:crash');await pause('applied');
+await store.close();

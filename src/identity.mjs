@@ -164,6 +164,12 @@ export function createIdentity(configuration) {
     if (!natural(lockedUntil)) fail('INVALID_IDENTITY', 'Authentication lock deadline overflow');
     await tx.set(failureKey(actor), { count, windowStart: start, lockedUntil });
   }
+  async function getAuthorityInTransaction(tx) { return (await authority(tx)).prepared; }
+  async function inspectActorInTransaction(tx, actor) {
+    id(actor); const { graph } = await authority(tx), current = credential(actor, await tx.get(credentialKey(actor)));
+    if (!current || !actorNode(graph, actor)) denied();
+    return Object.freeze({ tenant, actor, credentialRevision: current.revision });
+  }
   async function issueSessionInTransaction(tx, actor) {
     id(actor); const { graph } = await authority(tx), current = credential(actor, await tx.get(credentialKey(actor)));
     if (!current || !actorNode(graph, actor)) denied();
@@ -203,13 +209,24 @@ export function createIdentity(configuration) {
       const { graph } = await authority(tx), value = credential(request.actor, await tx.get(credentialKey(request.actor)));
       return { value, active: !!actorNode(graph, request.actor), fence: await fence(), locked: value ? (await failureState(tx, request.actor, now())).locked : false };
     });
-    if (candidate.locked && !previous) denied();
+    const binding = resultBinding('login', request.actor, request.operationId, candidate.fence);
+    const digest = requestDigest('login', request.actor, request, digestKey(previous, candidate.value?.stored.envelope.keyId ?? keyring.activeKey));
+    if (previous && digest !== previous.digest) {
+      unpack(previous.result, binding);
+      const mismatchBinding = resultBinding('login-recovery', request.actor, request.operationId, candidate.fence);
+      const mismatch = await engine.transact(async tx => {
+        const { graph } = await authority(tx), current = credential(request.actor, await tx.get(credentialKey(request.actor))), time = now();
+        if (!current || !actorNode(graph, request.actor)) denied();
+        const failures = await failureState(tx, request.actor, time); if (failures.locked) denied();
+        await recordFailure(tx, request.actor, time, failures); return pack({ status: 'mismatch' }, mismatchBinding);
+      }, { receipt: { id: operation + '/mismatch/' + digest, digest }, verifyReplay: async (_tx, receipt) => { unpack(receipt.result, mismatchBinding); }, beforeCommit: commitFence(candidate.fence, options.beforeCommit), ...(options.afterCommit ? { afterCommit: options.afterCommit } : {}) });
+      unpack(mismatch, mismatchBinding); fail('RECEIPT_MISMATCH', 'Operation identity has another login request');
+    }
+    if (candidate.locked) denied();
     const specification = candidate.value?.password ?? dummy, hash = await derive(request.password, specification);
     let matches;
     try { matches = timingSafeEqual(hash, Buffer.from(specification.hash, 'base64url')); } finally { hash.fill(0); }
     if (!candidate.value || !candidate.active) denied();
-    const binding = resultBinding('login', request.actor, request.operationId, candidate.fence);
-    const digest = requestDigest('login', request.actor, request, digestKey(previous, candidate.value?.stored.envelope.keyId ?? keyring.activeKey));
     const result = await engine.transact(async tx => {
       const { graph } = await authority(tx), current = credential(request.actor, await tx.get(credentialKey(request.actor))), currentFence = await fence(), time = now();
       if (currentFence !== candidate.fence || current?.revision !== candidate.value?.revision) fail('AUTH_CHANGED', 'Credential changed during password verification');
@@ -223,7 +240,7 @@ export function createIdentity(configuration) {
       await tx.delete(failureKey(request.actor)); return pack({ status: 'ok', ...issued }, binding);
     }, { receipt: { id: operation, digest }, verifyReplay: async (tx, row) => {
       const original = unpack(row.result, binding);
-      if (original.status === 'ok') { const session = await inspectSession(tx, original.token); if (session.actor !== request.actor || !matches) denied(); }
+      if (original.status === 'ok') { if ((await failureState(tx, request.actor, now())).locked) denied(); const session = await inspectSession(tx, original.token); if (session.actor !== request.actor || !matches) denied(); }
     }, beforeCommit: commitFence(candidate.fence, options.beforeCommit), ...(options.afterCommit ? { afterCommit: options.afterCommit } : {}) });
     const opened = unpack(result, binding);
     if (opened.status !== 'ok') denied();
@@ -298,5 +315,5 @@ export function createIdentity(configuration) {
     }, { receipt: { id: operation, digest }, verifyReplay: async (_tx, row) => { unpack(row.result, binding); }, beforeCommit: commitFence(currentFence, options.beforeCommit), ...(options.afterCommit ? { afterCommit: options.afterCommit } : {}) });
     const opened = unpack(result, binding); if (opened.status !== 'ok') denied(); return { changed: true };
   }
-  return Object.freeze({ tenant, initialize, replacePolicy, login, authenticateInTransaction, authenticateBindingInTransaction, issueSessionInTransaction, read, authorizedPage, transact, mutate, logout, changePassword });
+  return Object.freeze({ tenant, initialize, replacePolicy, login, getAuthorityInTransaction, inspectActorInTransaction, authenticateInTransaction, authenticateBindingInTransaction, issueSessionInTransaction, read, authorizedPage, transact, mutate, logout, changePassword });
 }
