@@ -751,3 +751,104 @@ It uses the activity schemas, skewed partitions, equal tuple groups, exact value
 constraint rejection and injected rollback, independently checks source outcomes,
 and rebuilds the final inventory. Its evidence describes this small fixture and
 machine/runtime, with no production capacity or whole-transaction logarithmic claim.
+
+## Password custody and authenticated sessions (D2a)
+
+`createKeyring({ keys: { keyId: Buffer32 }, activeKey })` copies externally supplied
+root keys into a private closure. The host keeps those keys outside database files
+and backups. Its ordinary import API is `seal(JSONvalue, binding)`,
+`open(envelope, binding)` and `digest(value, binding, keyId?)`. Bindings contain
+`{ tenant, purpose, subject, revision, fence? }`. Revision is an exact decimal
+integer string. AES-256-GCM uses a fresh 12-byte nonce and authenticates the binding,
+key identifier and protocol version. HKDF-SHA256 separates tenant/purpose keys;
+request digests are keyed HMACs. Envelopes retain their key identifier, so old keys
+must remain available while retained envelopes or sessions use them. Unknown
+protocol/key versions reject as unsupported; altered ciphertext/bindings reject
+integrity. Keys are never an enumerable or serialized handle field.
+
+`createIdentity({ engine, keyring, getRestoreFence, clock?, passwordPolicy? })`
+requires a durable engine with receipt recovery. `getRestoreFence()` reads trusted
+external incarnation state, distinct from the database being restored. The default
+password work is scrypt `N=131072, r=8, p=1`, with a fresh 16-byte salt and 32-byte
+digest, and at most two concurrent derivations per identity instance. Passwords
+use their exact UTF-8 bytes. Default enrollment minimum/maximum is 12/4096 bytes;
+trusted host configuration can select explicit limits. Credential envelopes are
+bound to tenant, actor and revision and remain decryptable after a managed restore.
+No plaintext password, password digest, salt or bearer is stored in engine state.
+Original bearer results are retained only as authenticated ciphertext in receipts.
+JavaScript string inputs remain transient host memory; this is not a memory-erasure
+or timing-noninterference claim.
+
+`initialize({ policy, credentials: [{ actor, password }] })` and
+`replacePolicy(policy)` are privileged operator functions. They persist the exact
+existing `prepareAuthority` principal graph; there is no second grant/schema DSL.
+Enrollment requires active User principals and at least one usable administrator.
+Policy replacement is not delegated principal CRUD. The credential/session keys
+are opaque private protocol metadata, outside source memberships and generation
+rotation. A model still requires declared access, the appropriate action grant and
+the existing source-owner scope.
+
+`login({ actor, password, operationId }, hooks?)` returns
+`{ token, expiresAt }`. The opaque token contains a custody key identifier and 32
+random secret bytes. Session state stores its keyed digest, actor, credential
+revision, issue/expiry times and external restore fence. Invalid/unknown/inactive
+actors receive the same authentication failure; unknown actors allocate no durable
+failure/receipt rows. Known failed password proofs commit one bounded actor failure
+counter per original operation. The default is five failures per fifteen-minute
+window followed by a fifteen-minute lock. Wrong old-password proofs use the same
+counter. Password derivation runs outside the write transaction; final credential
+revision, active actor and restore incarnation are checked inside issuance.
+
+Each successful session operation retains its encrypted original result under the
+request identity and a keyed digest of the exact request, including any password
+proof. A lost acknowledgement reports the adapter's `COMMIT_UNKNOWN`; repeating
+that identity recovers the original result and does not mint another session or
+repeat source writes. Changed requests reject. Recovered login results require the
+original session to remain valid. An old incarnation's result cannot be released
+after restore; a fresh operation can authenticate against restored credentials.
+
+`authenticateInTransaction(tx, token)` supplies trusted
+`{ context: { tenant, actor }, getAuthority, binding }`. The private binding contains
+`tenant`, `actor`, keyed `digest`, `keyId`, `credentialRevision`, `fence` and
+`expiresAt`; it contains no bearer. `authenticateBindingInTransaction(tx, binding)`
+is a host-worker composition point that reloads the session, current credential,
+active graph, expiry and external fence. It permits recovery without storing a
+bearer in worker intent. Public request handlers must accept tokens rather than
+arbitrary bindings or caller-supplied actor context.
+
+`read(token, callback(tx, context, getAuthority))` and
+`transact(token, { operationId, request }, callback, hooks?)` own authenticated
+engine transactions. The provider checks the session and current persisted graph
+on every authority load; the transaction rechecks authentication before completion.
+`mutate(token, changes, { operationId, ...settlementCaps })` composes
+`mutateAuthorizedInTransaction` with that provider. It preserves both-owner checks,
+explicit Use on changed references, hidden atomic settlement, and final authority.
+The direct `mutateAuthorized` wrapper still detaches its context/commands before
+awaiting transaction admission. Its in-transaction counterpart leaves commit hooks
+to the transaction owner.
+
+`logout(token, { operationId }, hooks?)` durably revokes that session.
+`changePassword(token, { oldPassword, newPassword, operationId }, hooks?)` increments
+the encrypted credential revision and invalidates all previous sessions. Their
+original results remain recoverable after a lost acknowledgement, including after
+the old token was intentionally invalidated. Receipt/failure metadata stays private.
+`issueSessionInTransaction(tx, actor)` is a privileged verified-proof handoff for an
+already enrolled active actor; its caller must seal the returned bearer into the
+same original-result receipt. Delivered email/phone proof issuance follows in D2b
+and is not supplied merely by this handoff.
+
+The service selects one tenant, maps its admitted username to an actor, and supplies
+clock, custody keys, fences and work budgets as host configuration. Public handlers
+expose authorized operations only. Raw engine transactions, policy replacement,
+credentials, diagnostic callbacks, inspection, generation controls and secret/worker
+helpers remain privileged imports. KDF/read/receipt budgets are explicit work
+limits, not whole-process heap or deployment-capacity evidence.
+
+`identity.authorizedPage(token, query, options)` composes the R5 page reader with
+current authenticated context. Its private trusted `getContinuationFence(tx,
+context)` callback includes the exact session digest, credential revision and
+restore incarnation in the cursor's authority fence, within the page transaction.
+A replacement session cannot resume an old session's cursor even if actor/grants
+and source data are unchanged. Password changes and live incarnation rotation
+also reject old cursors. Unrelated source writes still allow progress with the
+same session. The callback and fence values are never wire query/options fields.

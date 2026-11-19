@@ -156,16 +156,17 @@ export function createEngine(configuration){
     context=fixedContext(context);
     exact(query,['model','index','partition','range','limit'],['model','index','partition','limit']);query=structuredClone(query);
     const budgets=['maxDiscovery','maxStreams','maxCandidates','maxRefills','maxNodeVisits','maxBatchCalls','maxReadBytes','maxOutputBytes','maxScannedKeys','batchSize'];
-    fields(options,['cursor','getAuthority','onMetrics',...budgets],['getAuthority']);
-    if(typeof options.getAuthority!=='function'||options.onMetrics!==undefined&&typeof options.onMetrics!=='function')fail('INVALID_READ','Invalid authority provider');
-    const {cursor,getAuthority:provider,onMetrics,...inputLimits}=options;canonical(inputLimits);
+    fields(options,['cursor','getAuthority','getContinuationFence','onMetrics',...budgets],['getAuthority']);
+    if(typeof options.getAuthority!=='function'||options.onMetrics!==undefined&&typeof options.onMetrics!=='function'||options.getContinuationFence!==undefined&&typeof options.getContinuationFence!=='function')fail('INVALID_READ','Invalid authority provider');
+    const {cursor,getAuthority:provider,getContinuationFence,onMetrics,...inputLimits}=options;canonical(inputLimits);
     if(!Object.values(inputLimits).every(natural)||inputLimits.batchSize===0)fail('INVALID_READ','Invalid authorized page limits');
     const readOptions={...structuredClone(inputLimits),getAuthority:provider,...(onMetrics===undefined?{}:{onMetrics})};
     return activeStore.read(async(tx,current)=>{
       const prepared=await readOptions.getAuthority?.(tx),getAuthority=async()=>prepared;
       let initialDiscovery=0;const discoveryLimit=readOptions.maxDiscovery??10000;
       const scope=await resolveRequestAuthority(tx,catalog,context,getAuthority,()=>{if(++initialDiscovery>discoveryLimit)fail('WORK_LIMIT','Authorized discovery budget exceeded');});
-      const authorityHash=fingerprint(scope),held=cursor===undefined?undefined:typeof cursor==='string'&&cursors.get(cursor);
+      const continuationFence=getContinuationFence===undefined?null:await getContinuationFence(tx,context);
+      const authorityHash=fingerprint({scope,continuationFence}),held=cursor===undefined?undefined:typeof cursor==='string'&&cursors.get(cursor);
       if(cursor!==undefined&&!held)fail('INVALID_CURSOR','Unknown or consumed cursor');
       if(held&&(held.generation!==current.generation||held.authorityHash!==authorityHash))fail('STALE_CURSOR','Cursor generation or authority changed');
       if(typeof query.model!=='string'||!Object.hasOwn(catalog.models,query.model)||!permits(scope,{tenant,model:query.model,owner:scope.actor},'read'))fail('FORBIDDEN','Operation is not permitted');

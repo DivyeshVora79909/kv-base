@@ -1,6 +1,6 @@
 # Checkpoints and acceptance gates
 
-**D2a is the first unmet gate. R1–R5, optional SQLite D1 and D1F are accepted.**
+**D3 is the first unmet gate. R1–R5, optional SQLite D1, D1F and D2a are accepted.**
 The durable primary is FoundationDB. One Node service accepts writes and may
 execute disjoint transactions concurrently through the ordered transactional KV
 adapter. SQLite remains an optional serialized adapter. This roadmap starts from `8f337cd`, which includes
@@ -195,6 +195,14 @@ client/server versions, physical limits and target ownership. One local Foundati
 server is not replicated-failure or power-loss acceptance. D2a follows this gate.
 
 ## D2 — Credential custody, identity and session fencing
+
+**D2a accepted 2026-11-19.** 377 tests passed, zero failed/skipped, Node26.12.0,
+including nineteen primary FoundationDB identity witnesses, fourteen optional SQLite
+witnesses and one independent keyring witness. Concurrent policy revocation,
+credential revision, owner transfer and original issuance collisions reject stale
+publication. Private session-fenced cursors reject replacement sessions and restore
+incarnations while unrelated source edits allow progress. See
+[D2a evidence](evidence/2026-11-19-d2a.json). D2b delivered email/phone proofs follows D3.
 
 D2a follows D1F: real credentials and opaque sessions use external encryption/HMAC
 keys, one existing authority graph, bounded authentication attempts, expiry,

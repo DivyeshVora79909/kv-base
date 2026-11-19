@@ -324,6 +324,17 @@ precedes ingress, avoiding an accidental shared write on the disjoint path.
 Native transactions retain their finite lifetime/key/value/byte limits. One local
 FoundationDB process is the conformance target, not replicated-failure acceptance.
 
+D2a loads the existing prepared owner graph from the transaction. Password envelopes
+use independent salts and scrypt outside the writer transaction, with bounded work
+and durable admitted failure counters. The final transaction rechecks credential
+revision, actor activity, authority and the external incarnation. Sessions persist
+only keyed bearer digests; original issuance receipts hold authenticated ciphertext.
+Password changes revoke old sessions by credential revision. Restore retains stable
+credential encryption bindings and changes the external incarnation, allowing fresh
+login while rejecting old sessions/results. Authorized cursors include the private
+session binding in their authority fence. Enrollment and graph replacement are
+operator functions, not delegated principal CRUD.
+
 Accepted R5 uses a fixed-tenant engine facade and the same prepared catalog. Sources
 and host policy stay shared; only derived namespaces rotate. A serializable rebuild
 checks source-derived scratch state, preserves source records exactly, stages and

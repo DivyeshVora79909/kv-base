@@ -1,6 +1,6 @@
 # Current context and local handoff
 
-**R1–R5, optional SQLite D1 and primary FoundationDB D1F are accepted; D2a is next.** The implementation baseline is
+**R1–R5, optional SQLite D1, primary FoundationDB D1F and D2a are accepted; D3 is next.** The implementation baseline is
 `8f337cd` (JS-P4b.2). The [checkpoint roadmap](docs/checkpoints.md) gives the
 R1–R5 sequence, the acceptance tests and the work each gate can reuse.
 
@@ -107,6 +107,18 @@ native client/server7.3.81. The owned test cluster is one local process/coordina
 replication/server-failure, native commit-ack injection, disk/power loss and capacity
 are unverified. Raw conformance HTTP routes are test fixtures, not production APIs.
 
+D2a accepted on 2026-11-19: **377 tests passed**, zero failed/skipped, Node26.12.0.
+The34 new registrations cover primary FDB19, optional SQLite14 and independent
+keyring1. Passwords use salted scrypt (default N131072/r8/p1), bounded work/attempts
+and encrypted external-key custody. Session digests and sealed original receipts
+preserve expiry, revocation, password rotation, concurrent owner/policy conflicts and
+restore fencing. Credential encryption remains stable across restore; session/result
+incarnations change. Authorized cursors bind the private session identity, so another
+token for the same actor cannot resume an old handle. See
+[D2a evidence](docs/evidence/2026-11-19-d2a.json). D1F was published at `638e97d` and
+its43 post-commit adapter/service checks passed. Real delivered email/phone proofs
+remain D2b after D3; enrollment/graph replacement remain trusted operator functions.
+
 The requested R1–R5 sequence is complete. `createEngine` owns fixed-tenant active
 snapshot reads/writes, opaque raw/authorized continuations and rebuild/check/retire.
 One source authority and prepared catalog remain shared; only derived namespaces
@@ -127,9 +139,10 @@ migration, online catch-up and durable/session restore continuations are deferre
 All lifecycle writes should use the engine facade; raw adapter writes remain privileged
 and can bypass active-generation maintenance. Logical byte caps do not bound eager
 cloning or heap usage. Whole-source continuation witnesses are budgeted scans, not
-logarithmic queries. Fixture policy is not authentication.
+logarithmic queries. Fixture policy alone is not authentication; the D2a identity
+boundary derives actor/tenant from live opaque sessions.
 
-Next gates retain identity/session and restore fencing; credentials/key custody; durable
+Next gates retain delivered proof admission; durable
 effect intent, provider fencing and unknown outcomes; object lifecycle/full pipeline;
 release/bootstrap, operational capacity and selected deployment. None is supplied by
 native files or adapters in this repository. Full accounting, recurrence, temporal

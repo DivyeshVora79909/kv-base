@@ -59,66 +59,78 @@ export async function mutateAuthorized(store, catalog, context, changes, options
   const { getAuthority, beforeCommit, ...settlementOptions } = mutationOptions(options);
   assertJson(context);
   const request = cloneData(context), commands = parseChanges(changes);
-  return store.transact(async tx => {
-    const initialScope = await resolveRequestAuthority(tx, catalog, request, getAuthority);
-    const originals = new Map(), entries = new Map(), uses = [];
-    async function readSource(id) {
-      const record = await tx.get(sourceKey(request.tenant, id));
-      if (record !== undefined) {
-        try { validateRecord(catalog, record); } catch { fail('CORRUPT_STATE', 'Invalid stored source'); }
-        if (record.id !== id || record.tenant !== request.tenant) fail('CORRUPT_STATE', 'Source key mismatch');
-      }
-      return record;
+  return store.transact(tx => applyAuthorized(tx, catalog, request, commands, getAuthority, settlementOptions), { beforeCommit });
+}
+
+/** The trusted host owns the transaction. Parsing and detachment still precede
+ * any awaits; final authority is reloaded inside the caller's atomic boundary. */
+export async function mutateAuthorizedInTransaction(tx, catalog, context, changes, options) {
+  const { getAuthority, beforeCommit, ...settlementOptions } = mutationOptions(options);
+  if (beforeCommit !== undefined) fail('INVALID_MUTATION', 'The transaction owner supplies commit hooks');
+  assertJson(context);
+  const request = cloneData(context), commands = parseChanges(changes);
+  return applyAuthorized(tx, catalog, request, commands, getAuthority, settlementOptions);
+}
+
+async function applyAuthorized(tx, catalog, request, commands, getAuthority, settlementOptions) {
+  const initialScope = await resolveRequestAuthority(tx, catalog, request, getAuthority);
+  const originals = new Map(), entries = new Map(), uses = [];
+  async function readSource(id) {
+    const record = await tx.get(sourceKey(request.tenant, id));
+    if (record !== undefined) {
+      try { validateRecord(catalog, record); } catch { fail('CORRUPT_STATE', 'Invalid stored source'); }
+      if (record.id !== id || record.tenant !== request.tenant) fail('CORRUPT_STATE', 'Source key mismatch');
     }
-    async function original(id) {
-      if (!originals.has(id)) originals.set(id, await readSource(id));
-      return originals.get(id);
+    return record;
+  }
+  async function original(id) {
+    if (!originals.has(id)) originals.set(id, await readSource(id));
+    return originals.get(id);
+  }
+  function authorize(scope, entry, next = entry.next) {
+    if (entry.old) permit(scope, entry.old, entry.action);
+    if (next) permit(scope, next, entry.action);
+  }
+  for (const command of commands) {
+    const id = command.type === 'put' ? command.record.id : command.id;
+    const old = await original(id), next = command.type === 'put' ? command.record : undefined;
+    if (!old && !next) forbidden();
+    const entry = { old, next, action: next ? old ? 'update' : 'create' : 'delete' };
+    // Scope precedes immutable-header, reference, uniqueness and business diagnostics.
+    authorize(initialScope, entry);
+    if (next) validateRecord(catalog, next);
+    entries.set(id, entry);
+  }
+  for (const entry of entries.values()) {
+    const oldReferences = references(catalog, entry.old);
+    for (const [position, ref] of references(catalog, entry.next)) {
+      if (oldReferences.get(position)?.targetId === ref.targetId) continue;
+      const old = await original(ref.targetId);
+      const next = entries.has(ref.targetId) ? entries.get(ref.targetId).next : old;
+      if (old) permit(initialScope, old, 'use');
+      if (next) {
+        if (!ref.targets.includes(next.model)) forbidden();
+        permit(initialScope, next, 'use');
+      } else if (!ref.targetId.startsWith(GENERATED_PREFIX) || entries.has(ref.targetId)) forbidden();
+      // A newly generated target can first exist after settlement. Its identity
+      // and Use authorization are checked below before any publication.
+      uses.push({ ...ref, old });
     }
-    function authorize(scope, entry, next = entry.next) {
-      if (entry.old) permit(scope, entry.old, entry.action);
-      if (next) permit(scope, next, entry.action);
-    }
-    for (const command of commands) {
-      const id = command.type === 'put' ? command.record.id : command.id;
-      const old = await original(id), next = command.type === 'put' ? command.record : undefined;
-      if (!old && !next) forbidden();
-      const entry = { old, next, action: next ? old ? 'update' : 'create' : 'delete' };
-      // Scope precedes immutable-header, reference, uniqueness and business diagnostics.
-      authorize(initialScope, entry);
-      if (next) validateRecord(catalog, next);
-      entries.set(id, entry);
-    }
-    for (const entry of entries.values()) {
-      const oldReferences = references(catalog, entry.old);
-      for (const [position, ref] of references(catalog, entry.next)) {
-        if (oldReferences.get(position)?.targetId === ref.targetId) continue;
-        const old = await original(ref.targetId);
-        const next = entries.has(ref.targetId) ? entries.get(ref.targetId).next : old;
-        if (old) permit(initialScope, old, 'use');
-        if (next) {
-          if (!ref.targets.includes(next.model)) forbidden();
-          permit(initialScope, next, 'use');
-        } else if (!ref.targetId.startsWith(GENERATED_PREFIX) || entries.has(ref.targetId)) forbidden();
-        // A newly generated target can first exist after settlement. Its identity
-        // and Use authorization are checked below before any publication.
-        uses.push({ ...ref, old });
-      }
-    }
-    await mutateInTransaction(tx, catalog, request.tenant, commands, settlementOptions);
-    const finalScope = await resolveRequestAuthority(tx, catalog, request, getAuthority);
-    for (const [id, entry] of entries) {
-      authorize(finalScope, entry);
-      const next = await readSource(id);
-      if (next) permit(finalScope, next, entry.action);
-    }
-    for (const ref of uses) {
-      if (ref.old) permit(finalScope, ref.old, 'use');
-      const next = await readSource(ref.targetId);
-      if (!next || !ref.targets.includes(next.model)) forbidden();
-      permit(initialScope, next, 'use');
-      permit(finalScope, next, 'use');
-    }
-    // Raw mutation results contain privileged derived scopes and guard keys.
-    return { applied: commands.length };
-  }, { beforeCommit });
+  }
+  await mutateInTransaction(tx, catalog, request.tenant, commands, settlementOptions);
+  const finalScope = await resolveRequestAuthority(tx, catalog, request, getAuthority);
+  for (const [id, entry] of entries) {
+    authorize(finalScope, entry);
+    const next = await readSource(id);
+    if (next) permit(finalScope, next, entry.action);
+  }
+  for (const ref of uses) {
+    if (ref.old) permit(finalScope, ref.old, 'use');
+    const next = await readSource(ref.targetId);
+    if (!next || !ref.targets.includes(next.model)) forbidden();
+    permit(initialScope, next, 'use');
+    permit(finalScope, next, 'use');
+  }
+  // Raw mutation results contain privileged derived scopes and guard keys.
+  return { applied: commands.length };
 }
